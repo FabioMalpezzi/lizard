@@ -1057,3 +1057,26 @@ class Test_TSX_hash_and_dash_in_tags(unittest.TestCase):
                          [(f.name, f.start_line, f.end_line,
                            f.cyclomatic_complexity)
                           for f in get_tsx_function_list(code)])
+
+
+class Test_TSX_slash_and_quotes_in_the_text_of_a_tag(unittest.TestCase):
+
+    def test_slash_quote_and_backtick_in_the_text(self):
+        for text in ("in /config or with the --ide flag", "it's here",
+                     'say "hi', "a ` b", "a // b /* c"):
+            code = (
+                "function A(x) {\n"
+                "  return <Text dimColor={true}>" + text + "</Text>;\n"
+                "}\n"
+                "function B(x) {\n"
+                "  return <p>" + text + " {x}</p>;\n"
+                "}\n"
+                "function after() { return 1; }\n"
+            )
+            for filename in ("a.jsx", "a.tsx"):
+                self.assertEqual(
+                    [('A', 1, 3), ('B', 4, 6), ('after', 7, 7)],
+                    [(f.name, f.start_line, f.end_line) for f in
+                     analyze_file.analyze_source_code(
+                         filename, code).function_list],
+                    text + " in " + filename)
