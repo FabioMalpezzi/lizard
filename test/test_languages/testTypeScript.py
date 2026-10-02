@@ -1376,3 +1376,44 @@ class Test_ts_conditions_in_template_literals(unittest.TestCase):
     def test_function_inside_a_template_expression_is_not_reported(self):
         code = "function a(list) {\n  return `${list.map(x => { return x; })}`;\n}\n"
         self.assertEqual([('a', 1)], self.ccn(code))
+
+
+class Test_ts_parameter_list(unittest.TestCase):
+
+    def parameter_counts(self, code):
+        return [(f.name, f.parameter_count) for f in get_ts_function_list(code)]
+
+    def test_destructured_parameter_with_a_type_and_a_default(self):
+        code = "function f(a = 1, { x, y }: Point = { x: 0 }, ...rest: number[]) { return a; }"
+        self.assertEqual([('f', 3)], self.parameter_counts(code))
+
+    def test_function_type_parameter(self):
+        code = (
+            "function f(cb: (a: number, b: number) => void, n: number) {\n"
+            "  return n;\n"
+            "}\n"
+            "function g() { return 1; }\n"
+        )
+        self.assertEqual([('f', 2), ('g', 0)], self.parameter_counts(code))
+
+    def test_tuple_and_object_type_parameters(self):
+        code = "function f(a: [number, string], b: { x: number, y: number }) { return a; }"
+        self.assertEqual([('f', 2)], self.parameter_counts(code))
+
+    def test_anonymous_arrow_function_with_typed_parameters(self):
+        code = "const r = list.map((x: number, i: number) => x + i);"
+        self.assertEqual([('(anonymous)', 2)], self.parameter_counts(code))
+
+    def test_arrow_function_with_a_return_type(self):
+        code = "const f = (a: number, b: number): number => { return a + b; };"
+        self.assertEqual([('f', 2)], self.parameter_counts(code))
+
+    def test_parenthesized_expression_before_a_type_assertion(self):
+        code = (
+            "function f(a: unknown) {\n"
+            "  const n = (a as number) + 1;\n"
+            "  return n;\n"
+            "}\n"
+            "function g() { return 1; }\n"
+        )
+        self.assertEqual([('f', 1), ('g', 0)], self.parameter_counts(code))

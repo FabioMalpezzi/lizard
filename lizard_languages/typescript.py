@@ -15,6 +15,41 @@ TEMPLATE_LITERAL = (
 )
 
 
+class Parenthesis(str):
+    '''
+    An opening parenthesis that knows what follows the one that closes it:
+    "=>" after the parameters of an arrow function (arrow is True) or
+    anything else but a ":" (arrow is False). Before a ":" the parenthesis
+    stays a plain string: a return type may follow, or not.
+    '''
+    def __new__(cls, arrow):
+        token = super().__new__(cls, '(')
+        token.arrow = arrow
+        return token
+
+
+def mark_parentheses(tokens):
+    '''
+    Replace the opening parentheses of the tokens with a Parenthesis. The
+    states read the tokens one at a time, and cannot know from "(" alone if
+    "x = (a, b) => a" or "x = (a + b) * c" follows.
+    '''
+    tokens = list(tokens)
+    opened = []
+    for index, token in enumerate(tokens):
+        if token == '(':
+            opened.append(index)
+        elif token == ')' and opened:
+            following = next(
+                (t for t in tokens[index + 1:index + 50]
+                 if not (t.isspace() or t.startswith(('//', '/*')))), '')
+            if following != ':':
+                tokens[opened.pop()] = Parenthesis(following == '=>')
+            else:
+                opened.pop()
+    return tokens
+
+
 class Tokenizer(object):
     def __init__(self):
         self.sub_tokenizer = None
@@ -93,8 +128,8 @@ class TypeScriptReader(CodeReader, CCppCommentsMixin):
     def generate_tokens(source_code, addition='', token_class=None):
         # Private method (#), dollar ($), optional chaining (?), template literals
         addition = addition + r"|(?:#\w+)" + r"|(?:\$\w+)" + r"|(?:\w+\?)" + r"|" + TEMPLATE_LITERAL
-        return TypeScriptReader._generate_tokens(
-            source_code, addition, token_class)
+        return mark_parentheses(TypeScriptReader._generate_tokens(
+            source_code, addition, token_class))
 
     @staticmethod
     def _generate_tokens(source_code, addition, token_class, nested=False):
@@ -158,6 +193,8 @@ class TypeScriptStates(CodeStateMachine):
         self._prev_token = ''  # Track previous token to detect method calls
         self._in_prop_value = False  # Track if inside property value (after ':')
         self._in_abstract_context = False  # Track abstract method declarations
+        self._nesting_in_dec = 0  # Brackets open in a parameter list
+        self._arrow_parameter = None  # The parameter of "x => ..."
 
     def statemachine_before_return(self):
         # Ensure the main function is closed at the end
@@ -318,6 +355,13 @@ class TypeScriptStates(CodeStateMachine):
                     self.sub_state(self.__class__(self.context))
                     self._prev_token = token
                     return
+                if getattr(token, 'arrow', None) is False and (
+                        self.last_tokens == '=' or self._in_prop_value):
+                    # A parenthesized value, field = (...) or prop: (...),
+                    # is not the parameter list of an arrow function.
+                    self.sub_state(self.__class__(self.context))
+                    self._prev_token = token
+                    return
                 if not self.started_function:
                     # When last_tokens is '=' we're in a field assignment
                     # pattern (field = () => {}), so use function_name which
@@ -356,6 +400,10 @@ class TypeScriptStates(CodeStateMachine):
         elif token in ('else', 'do', 'try', 'final'):
             self.next(self._expecting_statement_or_block)
         elif token in ('=>',):
+            # "x => ..." has one parameter, read before the arrow
+            name = self.last_tokens
+            self._arrow_parameter = name if (
+                name and (name[0].isalpha() or name[0] in '_$')) else None
             self._state = self._arrow_function
         elif token == '=':
             # Only set function_name for valid identifiers
@@ -363,20 +411,32 @@ class TypeScriptStates(CodeStateMachine):
             if name and (name[0].isalpha() or name[0] in ('_', '$', '#')):
                 self.function_name = name
         elif token == "(":
-            # Check if this is a method call or constructor
-            if self._prev_token == '.' or self._prev_token == 'new':
+            arrow = getattr(token, 'arrow', None)
+            if arrow and not self.started_function:
+                # The parameters of an arrow function: it takes the name it
+                # is assigned to, if any.
+                #   const fn = (...) => {}
+                #   list.map((...) => {})
+                if self.last_tokens not in ('=', '>'):
+                    self.function_name = ''
+                self._function(self.function_name)
+                self.next(self._function, token)
+            elif self._prev_token == '.' or self._prev_token == 'new':
                 # This is a method call or constructor, not a function definition
                 self.sub_state(
                     self.__class__(self.context))
             elif self.function_name:
                 # Distinguish arrow-function definition from function call:
-                #   const fn = (...) => {}   <- _prev_token is '=' or 'async'
-                #   const fn = someFunc(...)  <- _prev_token is an identifier
+                #   const fn = (...): T => {}  <- _prev_token is '=' or 'async'
+                #   const fn = someFunc(...)   <- _prev_token is an identifier
+                #   const x = (a + b) * c      <- no arrow after the ')'
                 # In the second case, ( follows an identifier that differs
                 # from function_name, so it's a call — not a definition.
                 if (self.last_tokens != self.function_name
                         and self._prev_token not in ('=', 'async', '>')):
                     self.function_name = ''
+                    self.sub_state(self.__class__(self.context))
+                elif arrow is False:
                     self.sub_state(self.__class__(self.context))
                 else:
                     if not self.started_function:
@@ -468,6 +528,8 @@ class TypeScriptStates(CodeStateMachine):
     def _arrow_function(self, token):
         if not self.started_function:
             self._push_function_to_stack()
+            if self.started_function and self._arrow_parameter:
+                self.context.parameter(self._arrow_parameter)
         # Clear function_name so expression-body ( doesn't re-enter _function
         self.function_name = ''
         # Clear modifiers so the body's opening { isn't captured by the
@@ -500,6 +562,7 @@ class TypeScriptStates(CodeStateMachine):
             if not self.started_function:
                 self._push_function_to_stack()
             self._generic_depth_in_dec = 0
+            self._nesting_in_dec = 0
             self._state = self._dec
             self._dec(token)
 
@@ -508,13 +571,27 @@ class TypeScriptStates(CodeStateMachine):
         self._state = self._state_global
 
     def _dec(self, token):
-        if token == ')':
-            self._state = self._expecting_func_opening_bracket
-        elif token != '(':
+        if token in ('(', '[', '{'):
+            # A default value, a destructuring pattern or a type can open
+            # brackets inside the list.
+            self._nesting_in_dec += 1
+            if token != '(':
+                return
+        elif token in (']', '}'):
+            if self._nesting_in_dec > 1:
+                self._nesting_in_dec -= 1
+            return
+        elif token == ')':
+            self._nesting_in_dec -= 1
+            if self._nesting_in_dec <= 0:
+                self._state = self._expecting_func_opening_bracket
+        else:
             # Filter out TypeScript type keywords and operators from parameter count
             if token == ',':
-                # Ignore commas inside generic type brackets: Map<K, V>
-                if not getattr(self, '_generic_depth_in_dec', 0):
+                # Ignore commas inside generic type brackets, Map<K, V>, and
+                # inside the brackets of a pattern, a value or a type
+                if (not getattr(self, '_generic_depth_in_dec', 0)
+                        and self._nesting_in_dec == 1):
                     self.context.parameter(',')
             elif token == '<':
                 self._generic_depth_in_dec = getattr(
