@@ -35,8 +35,9 @@ class Test_tokenizing_TSX(unittest.TestCase):
 
     def test_with_embeded_attributes(self):
         # After Fix 1, attribute expressions handled by TSXTokenizer sub-tokenizer;
-        # ';' injected on close, residual tag tokens emitted
-        self.check_tokens(['y', ';', '<abc x={>a</abc>', '<a>', '</a>'],
+        # ';' injected on close, residual tag tokens emitted.
+        # The tag comes before the code in its attribute, as in the source.
+        self.check_tokens(['<abc x={', 'y', ';', '>a</abc>', '<a>', '</a>'],
                          '<abc x={y}>a</abc><a></a>')
 
     def test_less_than(self):
@@ -46,8 +47,9 @@ class Test_tokenizing_TSX(unittest.TestCase):
         self.check_tokens(['a', '<', 'b', ' ', 'and', ' ', 'c', '>', ' ', 'd'], 'a<b and c> d')
 
     def test_complicated_properties(self):
-        # After Fix 1, ';' injected when attribute expression ends
-        self.check_tokens(['data', ' ', '=>', '(', ')', ';', '<StaticQuery render={ />'],
+        # After Fix 1, ';' injected when attribute expression ends.
+        # The tag comes before the code in its attribute, as in the source.
+        self.check_tokens(['<StaticQuery render={', 'data', ' ', '=>', '(', ')', ';', ' />'],
                          '<StaticQuery render={data =>()} />')
 
 
@@ -765,3 +767,113 @@ class Test_TSX_template_literals(unittest.TestCase):
         self.assertEqual([('Label', 1, 3, 2), ('b', 4, 4, 1)],
                          [(f.name, f.start_line, f.end_line, f.cyclomatic_complexity)
                           for f in functions])
+
+
+def tsx_summary(code, filename="a.tsx"):
+    functions = analyze_file.analyze_source_code(filename, code).function_list
+    return [(f.name, f.start_line, f.end_line, f.parameter_count)
+            for f in functions]
+
+
+class Test_TSX_lines_of_functions_in_attributes(unittest.TestCase):
+
+    def test_function_in_an_attribute_of_a_tag_on_many_lines(self):
+        code = (
+            "export function LogoutButton() {\n"
+            "  return (\n"
+            "    <Button\n"
+            "      variant=\"outline\"\n"
+            "      className=\"w-full\"\n"
+            "      onClick={async () => {\n"
+            "        await logout();\n"
+            "      }}\n"
+            "    >\n"
+            "      Log out\n"
+            "    </Button>\n"
+            "  );\n"
+            "}\n"
+            "function after() { return 1; }\n"
+        )
+        expected = [('(anonymous)', 6, 8, 0), ('LogoutButton', 1, 13, 0),
+                    ('after', 14, 14, 0)]
+        self.assertEqual(expected, tsx_summary(code))
+        self.assertEqual(expected, tsx_summary(code, "a.jsx"))
+
+    def test_function_after_tags_on_many_lines(self):
+        code = (
+            "function Nav(props) {\n"
+            "  return (\n"
+            "    <nav className={props.name}>\n"
+            "      <a\n"
+            "        href=\"/inbox\"\n"
+            "      >\n"
+            "        <img src=\"/icon.png\" height={28} />\n"
+            "        <b className=\"x\">Admin</b>\n"
+            "      </a>\n"
+            "      {props.links.map((link) => <Item link={link} key={link.href} />)}\n"
+            "      <span className=\"flex-1\" />\n"
+            "    </nav>\n"
+            "  );\n"
+            "}\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual(
+            [('(anonymous)', 10, 10, 1), ('Nav', 1, 14, 1), ('after', 15, 15, 0)],
+            tsx_summary(code))
+
+    def test_two_functions_in_the_attributes_of_a_tag(self):
+        code = (
+            "function Field(props) {\n"
+            "  return <input\n"
+            "    value={props.value}\n"
+            "    onChange={(e) => props.change(e.target.value)}\n"
+            "    onBlur={(e, extra) => {\n"
+            "      props.blur(e);\n"
+            "    }}\n"
+            "  />;\n"
+            "}\n"
+        )
+        self.assertEqual(
+            [('(anonymous)', 4, 4, 1), ('(anonymous)', 5, 7, 2), ('Field', 1, 9, 1)],
+            tsx_summary(code))
+
+
+class Test_TSX_attributes(unittest.TestCase):
+
+    def check_tokens(self, expect, source):
+        tokens = list(TSXReader.generate_tokens(source))
+        self.assertEqual(expect, tokens)
+
+    def test_attribute_without_a_value(self):
+        self.check_tokens(['<input disabled />'], '<input disabled />')
+        self.check_tokens(['<input checked readOnly type="checkbox" />'],
+                          '<input checked readOnly type="checkbox" />')
+
+    def test_attribute_name_with_a_dash_or_a_colon(self):
+        self.check_tokens(['<a aria-label="x" data-id="1" xlink:href="y" />'],
+                          '<a aria-label="x" data-id="1" xlink:href="y" />')
+
+    def test_text_after_attributes_without_a_value(self):
+        code = (
+            "function Row(props) {\n"
+            "  return (\n"
+            "    <tr aria-selected data-id={props.id} {...props.rest}>\n"
+            "      if it is for you\n"
+            "    </tr>\n"
+            "  );\n"
+            "}\n"
+            "function after() { return 1; }\n"
+        )
+        functions = get_tsx_function_list(code)
+        self.assertEqual(
+            [('Row', 1, 7, 1), ('after', 8, 8, 1)],
+            [(f.name, f.start_line, f.end_line, f.cyclomatic_complexity)
+             for f in functions])
+
+    def test_tag_name_with_a_dot_or_a_dash(self):
+        self.check_tokens(['<Menu.Item key="a" />'], '<Menu.Item key="a" />')
+        self.check_tokens(['<my-item key="a" />'], '<my-item key="a" />')
+
+    def test_spread_attributes(self):
+        self.check_tokens(['<Foo {', '...', 'props', ';', ' a="1" />'],
+                          '<Foo {...props} a="1" />')
