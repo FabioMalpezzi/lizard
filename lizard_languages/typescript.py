@@ -224,6 +224,9 @@ _CONTINUED_BY = frozenset((
     '?', ':', '&&', '||', '??', '|', '&', '^', '%', '==', '===', '!=', '!==',
     '<=', '>=', '+', '-', '/', 'instanceof', 'in'))
 
+# Statements that start with a keyword the states read before the new line
+_STATEMENTS = frozenset(('if', 'switch', 'for', 'while', 'do', 'try'))
+
 # Modifiers, read before the end of a statement at a new line is
 _MODIFIERS = frozenset(('declare', 'abstract', 'static', 'async', 'get', 'set'))
 
@@ -256,6 +259,15 @@ class TypeScriptStates(CodeStateMachine):
         self._arrow_parameter = None  # The parameter of "x => ..."
         self._plain_colons = []  # Tokens whose colon is to come: ?, case, default
         self._after_label = False  # The last colon was the one of a case label
+        self._token = None  # The token being read
+        self._last_line = 0  # The line of the token before it
+
+    def __call__(self, token, reader=None):
+        self._token = token
+        exiting = super().__call__(token, reader)
+        self._token = None
+        self._last_line = self.context.current_line
+        return exiting
 
     def statemachine_before_return(self):
         # Ensure the main function is closed at the end
@@ -263,6 +275,10 @@ class TypeScriptStates(CodeStateMachine):
             self._pop_function_from_stack()
 
     def _state_global(self, token):
+        if (self._expression_body and self.started_function
+                and self.context.newline and token in _STATEMENTS):
+            # A statement on a new line ends an arrow function without braces
+            self._pop_function_from_stack()
         if (self.context.newline and token in _MODIFIERS
                 and self.last_token not in _CONTINUED_AFTER):
             # A modifier at the start of a line starts a new member or
@@ -642,11 +658,28 @@ class TypeScriptStates(CodeStateMachine):
 
     def _pop_function_from_stack(self):
         if self.started_function:
+            ended = self.context.current_function
+            # An arrow function without braces can be ended by the first
+            # token of a later line, which is not its own.
+            by_next_line = (self._expression_body and self.context.newline
+                            and self._token is not None)
             self.context.end_of_function()
+            if by_next_line:
+                self._give_back_last_token(ended)
         self.started_function = None
         self._expression_body = False
         self._in_prop_value = False
         self._in_field_value = False
+
+    def _give_back_last_token(self, ended):
+        enclosing = self.context.current_function
+        ended.end_line = self._last_line
+        counters = ['nloc', 'token_count']
+        if self._token in TypeScriptReader._control_flow_keywords:
+            counters.append('cyclomatic_complexity')
+        for counter in counters:
+            setattr(ended, counter, getattr(ended, counter) - 1)
+            setattr(enclosing, counter, getattr(enclosing, counter) + 1)
 
     def _start_arrow_function(self):
         # At the arrow, so that the function starts at the line of the arrow

@@ -1138,3 +1138,49 @@ class Test_ES6_expression_on_many_lines(unittest.TestCase):
         self.assertEqual(
             [('(anonymous)', 1), ('(anonymous)', 2), ('b', 0)],
             [(f.name, f.parameter_count) for f in get_js_function_list(code)])
+
+
+class Test_ES6_arrow_function_ended_by_the_next_line(unittest.TestCase):
+    """The token that ends an arrow function without braces is not its own."""
+
+    def test_statements_without_semicolons(self):
+        code = (
+            "const inc = x => x + 1\n"
+            "const dec = x => x - 1\n"
+            "if (a) { b() }\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual([('inc', 1, 1, 1), ('dec', 2, 2, 1), ('after', 4, 4, 1)],
+                         function_summary(get_js_function_list(code)))
+
+    def test_lines_and_tokens_are_the_same_with_and_without_a_semicolon(self):
+        with_semicolon = get_js_function_list("const inc = x => x + 1;\nlet a\n")[0]
+        without = get_js_function_list("const inc = x => x + 1\nlet a\n")[0]
+        self.assertEqual(1, without.nloc)
+        self.assertEqual(with_semicolon.nloc, without.nloc)
+        self.assertEqual(with_semicolon.token_count - 1, without.token_count)
+
+    def test_last_property_of_an_object(self):
+        code = (
+            "const rules = {\n"
+            "  find: text => text.match(/a/g)\n"
+            "}\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual([('find', 2, 2, 1), ('after', 4, 4, 1)],
+                         function_summary(get_js_function_list(code)))
+
+    def test_body_on_the_last_line_of_the_file(self):
+        functions = get_js_function_list("const inc = x =>\n  x + 1")
+        self.assertEqual([('inc', 1, 2, 1)], function_summary(functions))
+        self.assertEqual(2, functions[0].nloc)
+
+    def test_last_argument_of_a_call(self):
+        code = (
+            "run(\n"
+            "  x => x + 1\n"
+            ")\n"
+        )
+        functions = get_js_function_list(code)
+        self.assertEqual([('(anonymous)', 2, 2, 1)], function_summary(functions))
+        self.assertEqual(1, functions[0].nloc)
