@@ -28,6 +28,7 @@ class TSXReader(TypeScriptReader):
         addition = addition + \
             r"|(?:<[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*>)" + \
             r"|(?:<\/[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*>)" + \
+            r"|(?:<\/?>)" + \
             r"|(?:#\w+)" + \
             r"|(?:\$\w+)" + \
             QUESTION_MARK_TOKENS + \
@@ -55,6 +56,11 @@ _BEFORE_A_TAG = frozenset((
     'return', 'default', 'case', 'yield', 'await', 'do', 'else', 'in', 'of'))
 
 
+def _is_opening_tag(token):
+    return (token.startswith('<') and token.endswith('>')
+            and not token.startswith('</') and not token.endswith('/>'))
+
+
 class TSXTokenizer(JSTokenizer):
     def __init__(self):
         super().__init__()
@@ -70,6 +76,11 @@ class TSXTokenizer(JSTokenizer):
             self.sub_tokenizer = XMLTagWithAttrTokenizer()
             return
 
+        if _is_opening_tag(token) and can_be_tag:
+            # <div> or <>, a tag without attributes: its text follows
+            self.sub_tokenizer = XMLTagWithAttrTokenizer(token)
+            return
+
         if token == "=>":
             # Special handling for arrow functions
             yield token
@@ -80,11 +91,11 @@ class TSXTokenizer(JSTokenizer):
 
 
 class XMLTagWithAttrTokenizer(Tokenizer):
-    def __init__(self):
+    def __init__(self, opening_tag=None):
         super(XMLTagWithAttrTokenizer, self).__init__()
-        self.tag = None
-        self.state = self._global_state
-        self.cache = ['<']
+        self.tag = opening_tag and opening_tag[1:-1]
+        self.state = self._start_of_body if opening_tag else self._global_state
+        self.cache = [opening_tag or '<']
         self._attr_expr_active = False
 
     def __call__(self, token):
@@ -193,21 +204,29 @@ class XMLTagWithAttrTokenizer(Tokenizer):
         return self.flush()
 
     def _start_of_body(self, token):
-        if token == '(' and self.tag[:1].isupper():
-            # <T extends A>(x: T) => x: the type parameters of an arrow
-            # function, not a tag with attributes without a value
+        # Abort if the first token can't be JSX body content — likely type
+        # parameters or type arguments: <T extends A>(x: T) => x, <T> = ...
+        if token in ('=', '=>', ';', ')', ',') or (
+                token == '(' and self.tag[:1].isupper()):
             return self.abort()
         self.state = self._body
         return self._body(token)
 
     def _body(self, token):
-        # Abort if token can't be JSX body content — likely a type
-        # annotation close: React.FC<Props> = (...) => {
-        if token in ('=', '=>', ';', ')'):
+        # What is not a tag or an expression is text, not code: its words,
+        # brackets and quotes are not tokens.
+        if token == '=>':
             return self.abort()
 
         if token == "<":
             self.sub_tokenizer = XMLTagWithAttrTokenizer()
+            self.cache.pop()
+            return self.flush()
+
+        if _is_opening_tag(token):
+            # A tag without attributes inside this one: the closing tag
+            # that follows is its own
+            self.sub_tokenizer = XMLTagWithAttrTokenizer(token)
             self.cache.pop()
             return self.flush()
 
