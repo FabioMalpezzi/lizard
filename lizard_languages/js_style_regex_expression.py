@@ -8,8 +8,8 @@ import re
 # A regular expression literal: escapes, character classes (where a slash
 # does not end the literal) and anything else up to the closing slash, with
 # the flags. It never spans lines and is never empty ("//" is a comment).
-_REGEX_LITERAL = re.compile(
-    r"/(?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^/\\\[\n])+/\w*")
+_REGEX = r"/(?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^/\\\[\n])+/\w*"
+_REGEX_LITERAL = re.compile(_REGEX)
 
 # What a regular expression literal can follow; after anything else, like an
 # identifier, a number or a closing bracket, the slash is a division.
@@ -21,11 +21,15 @@ _BEFORE_REGEX_TOKENS = frozenset((
 
 # What matters inside a template literal: an escape, its end, an expression.
 _TEMPLATE_PART = re.compile(r"\\.|`|\$\{", re.S)
-# What matters inside the ${} of a template literal: strings and comments,
-# whose braces and backticks are text, then braces and nested literals.
+# What matters inside the ${} of a template literal: strings, comments and
+# regular expressions, whose braces, quotes and backticks are text, then
+# braces and nested literals. A regular expression is recognized by the
+# character before it.
 _EXPRESSION_PART = re.compile(
     r"\"(?:\\.|[^\"\\\n])*\"|'(?:\\.|[^'\\\n])*'"
-    r"|//[^\n]*|/\*.*?\*/|[`{}]", re.S)
+    r"|//[^\n]*|/\*.*?\*/"
+    r"|(?:(?<=[=,(\[!&|?:;{}])|(?<=[=,(\[!&|?:;{}] ))" + _REGEX +
+    r"|[`{}]", re.S)
 _ANYTHING = re.compile(r".*", re.S)
 
 
