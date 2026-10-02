@@ -219,7 +219,8 @@ class TypeScriptStates(CodeStateMachine):
         self._in_abstract_context = False  # Track abstract method declarations
         self._nesting_in_dec = 0  # Brackets open in a parameter list
         self._arrow_parameter = None  # The parameter of "x => ..."
-        self._plain_colons = 0  # Colons to come of a ternary or of a case label
+        self._plain_colons = []  # Tokens whose colon is to come: ?, case, default
+        self._after_label = False  # The last colon was the one of a case label
 
     def statemachine_before_return(self):
         # Ensure the main function is closed at the end
@@ -247,9 +248,9 @@ class TypeScriptStates(CodeStateMachine):
         # The colon of "a ? b : c", of "case x:" and of "default:" is not the
         # one of a property or of a type annotation.
         if token in ('?', 'case', 'default'):
-            self._plain_colons += 1
+            self._plain_colons.append(token)
         elif token == ':' and self._plain_colons:
-            self._plain_colons -= 1
+            self._after_label = self._plain_colons.pop() != '?'
             self.last_tokens = token
             if self._prev_token not in ('new', '.'):
                 self._prev_token = token
@@ -452,7 +453,7 @@ class TypeScriptStates(CodeStateMachine):
             self._state = self._function
         elif token in ('if', 'switch', 'for', 'while', 'catch'):
             self.next(self._expecting_condition_and_statement_block)
-        elif token in ('else', 'do', 'try', 'final'):
+        elif token in ('else', 'do', 'try', 'final', 'finally'):
             self.next(self._expecting_statement_or_block)
         elif token in ('=>',):
             # "x => ..." has one parameter, the token before the arrow
@@ -507,6 +508,9 @@ class TypeScriptStates(CodeStateMachine):
                 self.sub_state(
                     self.__class__(self.context),
                     self._pop_function_from_stack)
+            elif self.last_tokens == ':' and self._after_label:
+                # case x: { ... } is a block of statements, not an object
+                self.sub_state(self.__class__(self.context))
             else:
                 self.read_object()
         elif token == '[':
@@ -522,7 +526,7 @@ class TypeScriptStates(CodeStateMachine):
             self._pop_function_from_stack()
         elif self.context.newline or token == ';':
             if token == ';':
-                self._plain_colons = 0
+                self._plain_colons = []
             self.function_name = ''
             self._pop_function_from_stack()
             # Reset modifiers on newline/semicolon
@@ -568,7 +572,8 @@ class TypeScriptStates(CodeStateMachine):
             return
 
         if token != '(':
-            self.next(self._state_global, token)
+            # catch { ... } has no condition
+            self.next(self._expecting_statement_or_block, token)
             return
 
         self.sub_state(

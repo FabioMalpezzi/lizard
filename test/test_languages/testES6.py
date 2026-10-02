@@ -940,3 +940,63 @@ class Test_ES6_members_named_get_or_set(unittest.TestCase):
         self.assertEqual(
             [('get', 2, 2, 1), ('g', 1, 4, 1), ('after', 5, 5, 1)],
             function_summary(get_js_function_list(code)))
+
+
+class Test_ES6_blocks_of_statements(unittest.TestCase):
+    """A block of statements is not read as an object."""
+
+    def names(self, code):
+        return [(f.name, f.start_line, f.end_line)
+                for f in get_js_function_list(code)]
+
+    def test_block_after_a_case_label(self):
+        code = (
+            "function a(n, x) {\n"
+            "  switch (n) {\n"
+            "    case 1: {\n"
+            "      const label = x\n"
+            "        ? `<b ${x.on ? 1 : 2} title=\"${x.t ? f(1) : f(2)}\">`\n"
+            "        : '';\n"
+            "      return label;\n"
+            "    }\n"
+            "    default: {\n"
+            "      const k = x\n"
+            "        ? [f(1), f(2)]\n"
+            "        : (x < 3);\n"
+            "      return k;\n"
+            "    }\n"
+            "  }\n"
+            "}\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual([('a', 1, 16), ('after', 17, 17)], self.names(code))
+
+    def test_block_after_catch_without_a_binding(self):
+        code = (
+            "function b(f) {\n"
+            "  try {\n"
+            "    f();\n"
+            "  } catch {\n"
+            "    const k = f\n"
+            "      ? `${f(1)} ${f(2)}`\n"
+            "      : '';\n"
+            "  }\n"
+            "}\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual([('b', 1, 9), ('after', 10, 10)], self.names(code))
+
+    def test_block_after_finally(self):
+        code = (
+            "function b(f) {\n"
+            "  try {\n"
+            "    f();\n"
+            "  } finally {\n"
+            "    const k = f\n"
+            "      ? `${f(1)} ${f(2)}`\n"
+            "      : '';\n"
+            "  }\n"
+            "}\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual([('b', 1, 9), ('after', 10, 10)], self.names(code))
