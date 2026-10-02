@@ -1555,3 +1555,21 @@ class Test_ts_class_members_without_semicolons(unittest.TestCase):
         )
         self.assertEqual(['method'],
                          [f.name for f in get_ts_function_list(code)])
+
+
+class Test_ts_declaration_after_an_arrow_function_without_braces(unittest.TestCase):
+
+    def test_type_and_interface_end_the_arrow_function(self):
+        for declaration in ("type Position = {", "interface Position {"):
+            code = (
+                "export const isP = (ch) =>\n"
+                "  ch.length > 0\n"
+                + declaration + "\n"
+                "  a: number\n"
+                "}\n"
+                "function g(x) { return x; }\n"
+            )
+            self.assertEqual(
+                [('isP', 1, 2), ('g', 6, 6)],
+                [(f.name, f.start_line, f.end_line)
+                 for f in get_ts_function_list(code)], declaration)

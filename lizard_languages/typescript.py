@@ -227,8 +227,11 @@ _CONTINUED_BY = frozenset((
 # Statements that start with a keyword the states read before the new line
 _STATEMENTS = frozenset(('if', 'switch', 'for', 'while', 'do', 'try'))
 
-# Modifiers, read before the end of a statement at a new line is
-_MODIFIERS = frozenset(('declare', 'abstract', 'static', 'async', 'get', 'set'))
+# Modifiers and declarations, read before the end of a statement at a new
+# line is
+_MODIFIERS = frozenset((
+    'declare', 'abstract', 'static', 'async', 'get', 'set', 'type',
+    'interface'))
 
 # TypeScript type keywords that should not be counted as parameters
 _TS_TYPE_KEYWORDS = frozenset([
