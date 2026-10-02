@@ -1903,3 +1903,27 @@ class Test_ts_types_that_end_before_an_arrow(unittest.TestCase):
         )
         self.assertEqual([('make', 1, 1), ('other', 2, 2), ('g', 3, 3)],
                          self.summary(code))
+
+
+class Test_ts_parameter_names(unittest.TestCase):
+
+    def params(self, code):
+        return [(f.name, f.parameter_count) for f in get_ts_function_list(code)]
+
+    def test_parameter_named_as_a_type(self):
+        code = (
+            "function round(number: number, precision: number): number { return 1; }\n"
+            "function widest(string: string): number { return 1; }\n"
+            "function json(object: any): T { return 1; }\n"
+        )
+        self.assertEqual([('round', 2), ('widest', 1), ('json', 1)],
+                         self.params(code))
+
+    def test_this_parameter_is_not_a_parameter(self):
+        code = (
+            "function a(this: Window, x: number) { return x; }\n"
+            "const b = async function* (this: StructuredIO) { yield 1; }\n"
+        )
+        self.assertEqual([('a', 1), ('b', 0)], self.params(code))
+        code = "function c(this: Map<string, number>, x: number) { return x; }\n"
+        self.assertEqual([('c', 1)], self.params(code))

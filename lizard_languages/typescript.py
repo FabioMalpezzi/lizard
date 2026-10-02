@@ -385,6 +385,8 @@ class TypeScriptStates(CodeStateMachine):
         self._expression_body = False  # In an arrow function without braces
         self._in_abstract_context = False  # Track abstract method declarations
         self._nesting_in_dec = 0  # Brackets open in a parameter list
+        self._parameter_start = False  # The next name is a parameter
+        self._this_parameter = False  # Reading "this: T", not a parameter
         self._arrow_parameter = None  # The parameter of "x => ..."
         self._plain_colons = []  # Tokens whose colon is to come: ?, case, default
         self._colons_before = 0  # Those already there when a function started
@@ -908,6 +910,8 @@ class TypeScriptStates(CodeStateMachine):
             # A default value, a destructuring pattern or a type can open
             # brackets inside the list.
             self._nesting_in_dec += 1
+            if self._nesting_in_dec == 1:
+                self._parameter_start, self._this_parameter = True, False
             if token != '(':
                 return
         elif token in (']', '}'):
@@ -926,6 +930,16 @@ class TypeScriptStates(CodeStateMachine):
                 if (not getattr(self, '_generic_depth_in_dec', 0)
                         and self._nesting_in_dec == 1):
                     self.context.parameter(',')
+                    self._parameter_start = True
+                    self._this_parameter = False
+            elif self._parameter_start and self._nesting_in_dec == 1 and (
+                    _IDENTIFIER.match(token)):
+                # The name of a parameter, also when it is the name of a
+                # type, function f(number: number); "this: T" is not one
+                self._parameter_start = False
+                self._this_parameter = token == 'this'
+                if not self._this_parameter:
+                    self.context.parameter(token.replace('?', ''))
             elif token == '<':
                 self._generic_depth_in_dec = getattr(
                     self, '_generic_depth_in_dec', 0) + 1
@@ -938,7 +952,7 @@ class TypeScriptStates(CodeStateMachine):
             elif token in ('*', '+', '-', '/', '%', '=', '.'):
                 pass
             elif not getattr(self, '_generic_depth_in_dec', 0):
-                if _IDENTIFIER.match(token):
+                if _IDENTIFIER.match(token) and not self._this_parameter:
                     self.context.parameter(token.replace('?', ''))
             return
         self.context.add_to_long_function_name(" " + token)
