@@ -114,23 +114,32 @@ class TypeScriptReader(CodeReader, CCppCommentsMixin):
         self.parallel_states = [TypeScriptStates(context)]
 
     def __call__(self, tokens, reader):
-        return super().__call__(self._outside_template_literals(tokens), reader)
+        return super().__call__(self._template_literals_for_states(tokens), reader)
 
     @staticmethod
-    def _outside_template_literals(tokens):
+    def _template_literals_for_states(tokens):
         '''
-        The states read a template literal as its opening backtick alone.
-        The tokens of a ${} are for the counters: a state that is reading a
-        parameter list or a type would take the brackets among them for its
-        own.
+        The states read a template literal as its opening backtick followed
+        by every ${} as an expression between parentheses, so that the
+        functions in it are found. The text of the literal is not code, and
+        "${" and "}" would not be a pair of brackets for a state that is
+        reading a parameter list or a type. The counters and the extensions
+        receive every token as it is.
         '''
-        inside = False
+        opened = None  # The brackets open in a template literal
         for token in tokens:
-            if token == '`':
-                inside = not inside
-                if inside:
-                    yield token
-            elif not inside:
+            if opened is None:
+                if token == '`':
+                    opened = []
+                yield token
+            elif token == '`' and not opened:
+                opened = None
+            elif token in ('${', '{'):
+                opened.append(token)
+                yield Parenthesis(False) if token == '${' else token
+            elif token == '}' and opened:
+                yield ')' if opened.pop() == '${' else token
+            elif opened and not token.startswith('`'):
                 yield token
 
     @staticmethod
@@ -400,7 +409,8 @@ class TypeScriptStates(CodeStateMachine):
                     self._prev_token = token
                     return
                 if getattr(token, 'arrow', None) is False and (
-                        self.last_tokens == '=' or self._in_prop_value):
+                        self.last_tokens == '=' or self._in_prop_value
+                        or self._in_field_value):
                     # A parenthesized value, field = (...) or prop: (...),
                     # is not the parameter list of an arrow function.
                     self.sub_state(self.__class__(self.context))
