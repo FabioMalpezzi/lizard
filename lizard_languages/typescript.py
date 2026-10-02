@@ -147,6 +147,10 @@ class Tokenizer(object):
     def stop(self):
         self._ended = True
 
+    def left_over(self):
+        """The tokens read and not given yet, when the source code ends."""
+        return self.sub_tokenizer.left_over() if self.sub_tokenizer else []
+
     def process_token(self, token):
         pass
 

@@ -44,14 +44,29 @@ class TSXReader(TypeScriptReader):
                         yield part
                 else:
                     yield tok
+        # A tag that is still open at the end of the file
+        for tok in js_tokenizer.left_over():
+            yield tok
+
+
+# After one of these words a "<" opens a tag, as after an operator; after any
+# other word, a ")" or a "]" it is a comparison or opens type arguments.
+_BEFORE_A_TAG = frozenset((
+    'return', 'default', 'case', 'yield', 'await', 'do', 'else', 'in', 'of'))
 
 
 class TSXTokenizer(JSTokenizer):
     def __init__(self):
         super().__init__()
+        self.previous = ''  # The last token that is not white space
 
     def process_token(self, token):
-        if token == "<":
+        previous = self.previous
+        if not token.isspace():
+            self.previous = token
+        can_be_tag = previous in _BEFORE_A_TAG or not (
+            previous[-1:].isalnum() or previous[-1:] in ('_', '$', ')', ']'))
+        if token == "<" and can_be_tag:
             self.sub_tokenizer = XMLTagWithAttrTokenizer()
             return
 
@@ -106,9 +121,15 @@ class XMLTagWithAttrTokenizer(Tokenizer):
         self.stop()
         return self.cache
 
+    def left_over(self):
+        return self.cache + super().left_over()
+
     def flush(self):
         tmp, self.cache = self.cache, []
-        return [''.join(tmp)]
+        text = ''.join(tmp)
+        # White space is given as it was read, with every new line as a
+        # token: a longer token of white space would not be counted.
+        return tmp if text.isspace() or not text else [text]
 
     def _global_state(self, token):
         if not isidentifier(token):
@@ -118,9 +139,15 @@ class XMLTagWithAttrTokenizer(Tokenizer):
 
     def _after_tag(self, token):
         if token == '>':
-            self.state = self._body
+            self.state = self._start_of_body
         elif token == "/":
             self.state = self._expecting_self_closing
+        elif token in ('.', '-', ':') and self.cache[-2] == self.tag:
+            # Menu.Item, my-item, svg:rect: the name of the tag goes on
+            self.state = self._global_state
+        elif token == '{':
+            # {...props}
+            return self._expression()
         elif isidentifier(token):
             self.state = self._expecting_equal_sign
         else:
@@ -135,20 +162,43 @@ class XMLTagWithAttrTokenizer(Tokenizer):
     def _expecting_equal_sign(self, token):
         if token == '=':
             self.state = self._expecting_value
+        elif token in ('-', ':'):
+            # aria-label, xlink:href: the name of the attribute goes on
+            self.state = self._attribute_name
         else:
+            # An attribute without a value: disabled, checked
+            self.state = self._after_tag
+            return self._after_tag(token)
+
+    def _attribute_name(self, token):
+        if not (isidentifier(token) or token.isdigit()):
             return self.abort()
+        self.state = self._expecting_equal_sign
 
     def _expecting_value(self, token):
         if token[0] in "'\"":
             self.state = self._after_tag
         elif token == "{":
-            # TSXTokenizer handles brace-depth tracking and stops at the
-            # matching '}'.  Transition straight to _after_tag so the next
-            # attribute (or '>') is processed correctly once the sub-
-            # tokenizer finishes.
-            self.state = self._after_tag
-            self.sub_tokenizer = TSXTokenizer()
-            self._attr_expr_active = True
+            return self._expression()
+
+    def _expression(self):
+        # TSXTokenizer handles brace-depth tracking and stops at the
+        # matching '}'.  Transition straight to _after_tag so the next
+        # attribute (or '>') is processed correctly once the sub-
+        # tokenizer finishes.  What was read of the tag is given first, so
+        # that the code of the expression is at its own lines.
+        self.state = self._after_tag
+        self.sub_tokenizer = TSXTokenizer()
+        self._attr_expr_active = True
+        return self.flush()
+
+    def _start_of_body(self, token):
+        if token == '(' and self.tag[:1].isupper():
+            # <T extends A>(x: T) => x: the type parameters of an arrow
+            # function, not a tag with attributes without a value
+            return self.abort()
+        self.state = self._body
+        return self._body(token)
 
     def _body(self, token):
         # Abort if token can't be JSX body content — likely a type
