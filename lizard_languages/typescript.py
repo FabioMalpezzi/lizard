@@ -222,7 +222,7 @@ _CONTINUED_AFTER = frozenset((
 # of the line before.
 _CONTINUED_BY = frozenset((
     '?', ':', '&&', '||', '??', '|', '&', '^', '%', '==', '===', '!=', '!==',
-    '<=', '>=', 'instanceof', 'in'))
+    '<=', '>=', '+', '-', '/', 'instanceof', 'in'))
 
 # Modifiers, read before the end of a statement at a new line is
 _MODIFIERS = frozenset(('declare', 'abstract', 'static', 'async', 'get', 'set'))
