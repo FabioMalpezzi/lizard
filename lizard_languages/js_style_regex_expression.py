@@ -19,23 +19,99 @@ _BEFORE_REGEX_TOKENS = frozenset((
     'void', 'throw', 'case', 'do', 'else', 'yield', 'await'))
 
 
+# What matters inside a template literal: an escape, its end, an expression.
+_TEMPLATE_PART = re.compile(r"\\.|`|\$\{", re.S)
+# What matters inside the ${} of a template literal: strings and comments,
+# whose braces and backticks are text, then braces and nested literals.
+_EXPRESSION_PART = re.compile(
+    r"\"(?:\\.|[^\"\\\n])*\"|'(?:\\.|[^'\\\n])*'"
+    r"|//[^\n]*|/\*.*?\*/|[`{}]", re.S)
+_ANYTHING = re.compile(r".*", re.S)
+
+
 def _can_start_regex(previous):
     return (previous is None or
             previous in _BEFORE_REGEX_TOKENS or
             previous[-1] in _BEFORE_REGEX_CHARACTERS)
 
 
-def js_style_regex_tokens(generate_tokens, source_code, addition='',
-                          token_class=None):
+def _expression_end(source_code, position):
+    '''
+    The position after the brace that closes the ${} whose code starts at
+    position; None when it is not closed.
+    '''
+    depth = 1
+    while depth:
+        found = _EXPRESSION_PART.search(source_code, position)
+        if not found:
+            return None
+        position = found.end()
+        if found.group(0) == '`':
+            position = _template_literal_end(source_code, found.start())
+            if position is None:
+                return None
+        else:
+            depth += {'{': 1, '}': -1}.get(found.group(0), 0)
+    return position
+
+
+def _template_literal_end(source_code, start):
+    '''
+    The position after the template literal that starts at start; None when
+    it does not end. A ${} can hold other template literals.
+    '''
+    position = start + 1
+    while True:
+        found = _TEMPLATE_PART.search(source_code, position)
+        if not found:
+            return None
+        position = found.end()
+        if found.group(0) == '`':
+            return position
+        if found.group(0) == '${':
+            position = _expression_end(source_code, position)
+            if position is None:
+                return None
+
+
+def js_template_literal_parts(literal):
+    '''
+    Split a template literal, given with its backticks, in the text between
+    the expressions and the code of every ${}: yields (text, False) and
+    (code, True). An empty text is not yielded.
+    '''
+    end = len(literal) - 1
+    position = text_start = 1
+    while True:
+        found = _TEMPLATE_PART.search(literal, position, end)
+        if not found:
+            break
+        position = found.end()
+        if found.group(0) == '${':
+            close = _expression_end(literal, position)
+            if close is None or close > end:
+                break
+            if found.start() > text_start:
+                yield literal[text_start:found.start()], False
+            yield literal[position:close - 1], True
+            position = text_start = close
+    if end > text_start:
+        yield literal[text_start:end], False
+
+
+def js_style_literal_tokens(generate_tokens, source_code, addition='',
+                            token_class=None):
     '''
     Generate the tokens of generate_tokens with every JavaScript regular
-    expression literal as one token.
+    expression literal and every template literal as one token.
 
-    The literal is read from the source code and not put together from the
-    tokens, because the tokenizer takes its content for something else: a "#"
-    starts a preprocessor line, "//" a comment and a quote a string, and the
-    code after the literal is lost. After a literal the tokenizer starts again
-    from the character that follows it.
+    The literals are read from the source code and not put together from the
+    tokens, because the tokenizer takes their content for something else. In
+    a regular expression a "#" starts a preprocessor line, "//" a comment and
+    a quote a string, and the code after the literal is lost. A template
+    literal with another one inside a ${} ends at the first backtick of the
+    inner one. After such a literal the tokenizer starts again from the
+    character that follows it.
 
     generate_tokens must yield the source code in consecutive pieces.
     '''
@@ -45,13 +121,21 @@ def js_style_regex_tokens(generate_tokens, source_code, addition='',
         position, start = start, None
         for token in generate_tokens(
                 source_code[position:], addition, token_class):
+            end = None
             if token == '/' and _can_start_regex(previous):
                 literal = _REGEX_LITERAL.match(source_code, position)
-                if literal:
-                    previous = literal.group(0)
-                    yield token_class(literal) if token_class else previous
-                    start = literal.end()
-                    break
+                end = literal and literal.end()
+            elif token.startswith('`'):
+                end = _template_literal_end(source_code, position)
+            if end is not None and end != position + len(token):
+                previous = source_code[position:end]
+                if token_class:
+                    yield token_class(
+                        _ANYTHING.match(source_code, position, end))
+                else:
+                    yield previous
+                start = end
+                break
             yield token
             position += len(token)
             if not (token.isspace() or token.startswith(('//', '/*'))):

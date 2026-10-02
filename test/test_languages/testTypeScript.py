@@ -16,13 +16,28 @@ class Test_tokenizing_TypeScript(unittest.TestCase):
         self.check_tokens(['abc?'], 'abc?')
 
     def test_nested_template_literal_exact_tokens(self):
+        # The backticks of the nested literal are not tokens: the outer
+        # literal is open until its own closing backtick.
         source_code = 'output.push(`${`${n}: `.padStart(w)}${s}`);'
         expected_tokens = [
-            'output', '.', 'push', '(', '`', '${', 
-            '`${`', '$', '{', 'n', '}', ':', ' ', '`', 
-            '`.padStart(w)}`', '${', 's', '}', '`', ')', ';'
+            'output', '.', 'push', '(', '`', '${',
+            '${', 'n', '}', '`: `', '.', 'padStart', '(', 'w', ')',
+            '}', '${', 's', '}', '`', ')', ';'
         ]
         self.check_tokens(expected_tokens, source_code)
+
+    def test_template_literal_expression_is_tokenized(self):
+        self.check_tokens(
+            ['`', '`v: `', '${', 'a', ' ', '?', ' ', "'y'", ' ', ':', ' ', "'n'", '}', '`'],
+            "`v: ${a ? 'y' : 'n'}`")
+
+    def test_template_literal_expression_with_braces(self):
+        self.check_tokens(
+            ['`', '${', 'f', '(', '{', 'a', ':', ' ', '"}"', '}', ')', '}', '`', ';'],
+            '`${f({a: "}"})}`;')
+
+    def test_template_literal_without_its_end(self):
+        self.check_tokens(['`', 'a', ' ', '$', '{', 'b'], '`a ${b')
 
 class Test_parser_for_TypeScript(unittest.TestCase):
 
@@ -1272,6 +1287,39 @@ class Test_ts_function_end_after_literals(unittest.TestCase):
         self.assertEqual([('a', 1, 4), ('b', 5, 5), ('c', 6, 6)],
                          self.spans(code))
 
+    def test_nested_template_literal(self):
+        code = (
+            "function a(d: string) {\n"
+            "  return `x${d ? `: ${d}` : ''}`;\n"
+            "}\n"
+            "function b() { return 1; }\n"
+            "function c() { return 2; }\n"
+        )
+        self.assertEqual([('a', 1, 3), ('b', 4, 4), ('c', 5, 5)],
+                         self.spans(code))
+
+    def test_nested_template_literal_in_an_arrow_function(self):
+        code = (
+            "function a(list: string[]) {\n"
+            "  const lines = list.map(item => {\n"
+            "    return `- ${item}${item ? `: ${item.length}` : ''}`;\n"
+            "  });\n"
+            "  return lines;\n"
+            "}\n"
+            "function b() { return 1; }\n"
+        )
+        self.assertEqual([('(anonymous)', 2, 4), ('a', 1, 6), ('b', 7, 7)],
+                         self.spans(code))
+
+    def test_template_literal_nested_twice(self):
+        code = (
+            "function a(d: string) {\n"
+            "  return `a${d ? `b${d ? `c${d}` : ''}` : ''}`;\n"
+            "}\n"
+            "function b() { return 1; }\n"
+        )
+        self.assertEqual([('a', 1, 3), ('b', 4, 4)], self.spans(code))
+
     def test_backtick_in_string_inside_template_expression(self):
         code = (
             "function a(k: string, e: boolean) {\n"
@@ -1282,3 +1330,31 @@ class Test_ts_function_end_after_literals(unittest.TestCase):
         )
         self.assertEqual([('a', 1, 3), ('b', 4, 4), ('c', 5, 5)],
                          self.spans(code))
+
+
+class Test_ts_conditions_in_template_literals(unittest.TestCase):
+
+    def ccn(self, code, filename="a.ts"):
+        functions = analyze_file.analyze_source_code(filename, code).function_list
+        return [(f.name, f.cyclomatic_complexity) for f in functions]
+
+    def test_ternary_in_a_template_expression(self):
+        code = "function a(x) {\n  return `v: ${x ? 'y' : 'n'}`;\n}\n"
+        self.assertEqual([('a', 2)], self.ccn(code))
+        self.assertEqual([('a', 2)], self.ccn(code, "a.js"))
+
+    def test_logical_operators_in_a_template_expression(self):
+        code = "function a(x, y) {\n  return `v: ${x && y || 0}`;\n}\n"
+        self.assertEqual([('a', 3)], self.ccn(code))
+
+    def test_ternary_in_a_nested_template_expression(self):
+        code = "function a(x, y) {\n  return `v: ${x ? `w: ${y ? 1 : 2}` : ''}`;\n}\n"
+        self.assertEqual([('a', 3)], self.ccn(code))
+
+    def test_template_without_expression_has_no_condition(self):
+        code = "function a(x) {\n  return `is it ? or && or ||`;\n}\n"
+        self.assertEqual([('a', 1)], self.ccn(code))
+
+    def test_function_inside_a_template_expression_is_not_reported(self):
+        code = "function a(list) {\n  return `${list.map(x => { return x; })}`;\n}\n"
+        self.assertEqual([('a', 1)], self.ccn(code))
