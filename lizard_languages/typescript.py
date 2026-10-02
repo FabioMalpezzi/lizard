@@ -215,6 +215,7 @@ class TypeScriptStates(CodeStateMachine):
         self._in_prop_value = False  # Track if inside property value (after ':')
         self._in_field_value = False  # Track if inside field value (after '=')
         self._closed_by = None  # ']' when reading between square brackets
+        self._expression_body = False  # In an arrow function without braces
         self._in_abstract_context = False  # Track abstract method declarations
         self._nesting_in_dec = 0  # Brackets open in a parameter list
         self._arrow_parameter = None  # The parameter of "x => ..."
@@ -502,7 +503,7 @@ class TypeScriptStates(CodeStateMachine):
                 self.sub_state(
                     self.__class__(self.context))
         elif token == '{':
-            if self.started_function:
+            if self.started_function and not self._expression_body:
                 self.sub_state(
                     self.__class__(self.context),
                     self._pop_function_from_stack)
@@ -586,12 +587,14 @@ class TypeScriptStates(CodeStateMachine):
         if self._in_abstract_context:
             return
         self.started_function = True
+        self._expression_body = False
         self.context.push_new_function(self.function_name or '(anonymous)')
 
     def _pop_function_from_stack(self):
         if self.started_function:
             self.context.end_of_function()
         self.started_function = None
+        self._expression_body = False
         self._in_prop_value = False
         self._in_field_value = False
 
@@ -610,6 +613,9 @@ class TypeScriptStates(CodeStateMachine):
         # async/static handler in the class body path.
         self._async_seen = False
         self._static_seen = False
+        # Without a "{" right after the arrow the body is an expression, and
+        # a "{" in it opens an object.
+        self._expression_body = token != '{'
         self.next(self._state_global, token)
 
     def _function(self, token):
