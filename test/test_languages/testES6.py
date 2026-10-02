@@ -677,6 +677,14 @@ class Test_ES6_parameter_list(unittest.TestCase):
                          function_summary(functions))
         self.assertEqual(2, functions[0].parameter_count)
 
+    def test_parameters_starting_with_underscore_or_dollar(self):
+        functions = get_js_function_list("function r(text, _a, $b, _) { return text; }")
+        self.assertEqual(4, functions[0].parameter_count)
+
+    def test_underscore_as_first_parameter_of_an_arrow_function(self):
+        functions = get_js_function_list("list.forEach((_, key) => selected.add(key));")
+        self.assertEqual(2, functions[0].parameter_count)
+
     def test_default_value_with_an_array(self):
         functions = get_js_function_list("const k = (a, b = [1, 2]) => { return a; };")
         self.assertEqual(2, functions[0].parameter_count)
