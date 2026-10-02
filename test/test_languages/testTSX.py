@@ -16,19 +16,20 @@ class Test_tokenizing_TSX(unittest.TestCase):
         self.check_tokens(['<abc />'], '<abc />')
 
     def test_simple_open_closing(self):
-        self.check_tokens(['<abc>', '</abc>'], '<abc></abc>')
+        self.check_tokens(['<abc></abc>'], '<abc></abc>')
 
     def test_open_closing_with_content(self):
-        self.check_tokens(['(', '<abc>', 'xxx', '  ', '+', 'yyy', '</abc>', ')'], '(<abc>xxx  +yyy</abc>)')
+        # The text of a tag is not code: it is given with its tag
+        self.check_tokens(['(', '<abc>xxx  +yyy</abc>', ')'], '(<abc>xxx  +yyy</abc>)')
 
     def test_nested(self):
-        self.check_tokens(['(', '<abc>', '<b>', 'xxx', '</b>', '</abc>', ')'], '(<abc><b>xxx</b></abc>)')
+        self.check_tokens(['(', '<abc>', '<b>xxx</b>', '</abc>', ')'], '(<abc><b>xxx</b></abc>)')
 
     def test_nested_save_tag(self):
-        self.check_tokens(['(', '<b>', '<b>', 'xxx', '</b>', '</b>', ')'], '(<b><b>xxx</b></b>)')
+        self.check_tokens(['(', '<b>', '<b>xxx</b>', '</b>', ')'], '(<b><b>xxx</b></b>)')
 
     def test_with_embeded_code(self):
-        self.check_tokens(['<abc>', '{', 'x', '}', '</abc>'], '<abc>{x}</abc>')
+        self.check_tokens(['<abc>{', 'x', '</abc>'], '<abc>{x}</abc>')
 
     def test_with_attributes(self):
         self.check_tokens(['<abc x="x">a</abc>'], '<abc x="x">a</abc>')
@@ -37,7 +38,7 @@ class Test_tokenizing_TSX(unittest.TestCase):
         # After Fix 1, attribute expressions handled by TSXTokenizer sub-tokenizer;
         # ';' injected on close, residual tag tokens emitted.
         # The tag comes before the code in its attribute, as in the source.
-        self.check_tokens(['<abc x={', 'y', ';', '>a</abc>', '<a>', '</a>'],
+        self.check_tokens(['<abc x={', 'y', ';', '>a</abc>', '<a></a>'],
                          '<abc x={y}>a</abc><a></a>')
 
     def test_less_than(self):
@@ -877,3 +878,72 @@ class Test_TSX_attributes(unittest.TestCase):
     def test_spread_attributes(self):
         self.check_tokens(['<Foo {', '...', 'props', ';', ' a="1" />'],
                           '<Foo {...props} a="1" />')
+
+
+class Test_TSX_text_is_not_code(unittest.TestCase):
+
+    def summary(self, code):
+        return [(f.name, f.start_line, f.end_line, f.cyclomatic_complexity)
+                for f in get_tsx_function_list(code)]
+
+    def test_text_in_a_tag_without_attributes(self):
+        code = (
+            "function Note(props) {\n"
+            "  return (\n"
+            "    <div>\n"
+            "      <p>Sign in for free (if you want); a = b, while it lasts</p>\n"
+            "      <b>{props.name}</b>\n"
+            "    </div>\n"
+            "  );\n"
+            "}\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual([('Note', 1, 8, 1), ('after', 9, 9, 1)],
+                         self.summary(code))
+
+    def test_text_in_a_fragment(self):
+        code = (
+            "function Note(props) {\n"
+            "  return (\n"
+            "    <>\n"
+            "      if (late) {props.name} for you\n"
+            "      <b>while it lasts</b>\n"
+            "    </>\n"
+            "  );\n"
+            "}\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual([('Note', 1, 8, 1), ('after', 9, 9, 1)],
+                         self.summary(code))
+
+    def test_text_in_nested_tags_with_the_same_name(self):
+        code = (
+            "function Note(props) {\n"
+            "  return <div className=\"a\"><div>if</div> for <div>while</div></div>;\n"
+            "}\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual([('Note', 1, 3, 1), ('after', 4, 4, 1)],
+                         self.summary(code))
+
+    def test_code_in_an_expression_inside_text_is_still_code(self):
+        code = (
+            "function Note(props) {\n"
+            "  return <p>for {props.on ? 'you' : 'me'} if {props.list.map(x => x && 1)}</p>;\n"
+            "}\n"
+        )
+        self.assertEqual([('(anonymous)', 2, 2, 2), ('Note', 1, 3, 2)],
+                         self.summary(code))
+
+    def test_type_arguments_are_not_a_tag(self):
+        code = (
+            "function Note(props) {\n"
+            "  const [value, setValue] = useState<string>(props.value);\n"
+            "  const ref = useRef<HTMLDivElement>(null);\n"
+            "  if (value) { return null; }\n"
+            "  return <p>{value}</p>;\n"
+            "}\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual([('Note', 1, 6, 2), ('after', 7, 7, 1)],
+                         self.summary(code))
