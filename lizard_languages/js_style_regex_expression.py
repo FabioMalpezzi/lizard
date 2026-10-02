@@ -114,8 +114,9 @@ def js_style_literal_tokens(generate_tokens, source_code, addition='',
     a regular expression a "#" starts a preprocessor line, "//" a comment and
     a quote a string, and the code after the literal is lost. A template
     literal with another one inside a ${} ends at the first backtick of the
-    inner one. After such a literal the tokenizer starts again from the
-    character that follows it.
+    inner one. A line comment ends at the end of its line, also when the
+    line ends with a backslash. After such a literal or comment the tokenizer
+    starts again from the character that follows it.
 
     generate_tokens must yield the source code in consecutive pieces.
     '''
@@ -131,13 +132,18 @@ def js_style_literal_tokens(generate_tokens, source_code, addition='',
                 end = literal and literal.end()
             elif token.startswith('`'):
                 end = _template_literal_end(source_code, position)
+            elif token.startswith('//') and '\n' in token:
+                # A line comment ends at its line, also after a backslash
+                end = position + token.index('\n')
             if end is not None and end != position + len(token):
-                previous = source_code[position:end]
+                text = source_code[position:end]
+                if not token.startswith('//'):
+                    previous = text
                 if token_class:
                     yield token_class(
                         _ANYTHING.match(source_code, position, end))
                 else:
-                    yield previous
+                    yield text
                 start = end
                 break
             yield token
