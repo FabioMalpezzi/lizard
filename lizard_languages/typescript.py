@@ -180,6 +180,9 @@ class TypeScriptReader(CodeReader, CCppCommentsMixin):
             yield quote
 
 
+# A name, also "_", "_unused" and "$element", with the "?" of an optional one
+_IDENTIFIER = re.compile(r"(?:[^\W\d]|\$)[\w$]*\??$")
+
 # TypeScript type keywords that should not be counted as parameters
 _TS_TYPE_KEYWORDS = frozenset([
     'string', 'number', 'boolean', 'void', 'any',
@@ -662,9 +665,7 @@ class TypeScriptStates(CodeStateMachine):
             elif token in ('*', '+', '-', '/', '%', '=', '.'):
                 pass
             elif not getattr(self, '_generic_depth_in_dec', 0):
-                if (token.replace('_', '').replace('?', '').isalnum() and
-                        token.replace('?', '') and
-                        token.replace('?', '')[0].isalpha()):
+                if _IDENTIFIER.match(token):
                     self.context.parameter(token.replace('?', ''))
             return
         self.context.add_to_long_function_name(" " + token)
