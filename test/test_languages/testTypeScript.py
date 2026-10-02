@@ -1320,6 +1320,24 @@ class Test_ts_function_end_after_literals(unittest.TestCase):
         )
         self.assertEqual([('a', 1, 3), ('b', 4, 4)], self.spans(code))
 
+    def test_template_expression_after_the_colon_of_a_ternary(self):
+        code = (
+            "function a(d: string, e: string) {\n"
+            "  return d ? d : `${f(d)} ${f(e)}`;\n"
+            "}\n"
+            "function b() { return 1; }\n"
+        )
+        self.assertEqual([('a', 1, 3), ('b', 4, 4)], self.spans(code))
+
+    def test_template_expression_in_a_default_value(self):
+        code = (
+            "function a(d: string, e = `${f({})}`) {\n"
+            "  return d;\n"
+            "}\n"
+            "function b() { return 1; }\n"
+        )
+        self.assertEqual([('a', 1, 3), ('b', 4, 4)], self.spans(code))
+
     def test_backtick_in_string_inside_template_expression(self):
         code = (
             "function a(k: string, e: boolean) {\n"
