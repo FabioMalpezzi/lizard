@@ -59,6 +59,24 @@ class TypeArguments(str):
         return super().__new__(cls, '<')
 
 
+class LabelColon(str):
+    '''
+    The colon of the label of a loop, outer: for (...), which is not followed
+    by a type.
+    '''
+    def __new__(cls):
+        return super().__new__(cls, ':')
+
+
+_LOOPS = frozenset(('for', 'while', 'do'))
+
+
+def _significant(tokens):
+    return next((token for token in tokens
+                 if not (token.isspace() or token.startswith(('//', '/*')))),
+                '')
+
+
 # What cannot be in the return type of an arrow function, outside brackets
 _NOT_IN_A_RETURN_TYPE = frozenset((
     ';', ',', '=', '?', ':', '`', 'return', 'const', 'let', 'var',
@@ -147,6 +165,9 @@ def mark_parentheses(tokens):
             if end:
                 tokens[index] = TypeArguments()
                 in_type_until = end
+        elif token == ':' and index and _IDENTIFIER.match(tokens[index - 1]) \
+                and _significant(tokens[index + 1:index + 20]) in _LOOPS:
+            tokens[index] = LabelColon()
     return tokens
 
 
@@ -391,6 +412,11 @@ class TypeScriptStates(CodeStateMachine):
         # one of a property or of a type annotation.
         if token in ('?', 'case', 'default'):
             self._plain_colons.append(token)
+        elif isinstance(token, LabelColon):
+            # The label of a loop is not followed by a type
+            self.last_tokens = token
+            self._prev_token = token
+            return
         elif token == ':' and self._plain_colons:
             if (self._expression_body and self.started_function
                     and len(self._plain_colons) <= self._colons_before):
