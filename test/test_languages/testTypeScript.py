@@ -1482,3 +1482,21 @@ class Test_ts_colon_that_is_not_a_type_annotation(unittest.TestCase):
         )
         self.assertEqual([('handler', 2, 2, 1), ('a', 1, 5, 1)],
                          self.summary(code))
+
+
+class Test_ts_optional_marker(unittest.TestCase):
+
+    def test_optional_parameter_and_member_are_not_ternaries(self):
+        code = (
+            "class A {\n"
+            "  name?: string;\n"
+            "  m(a?: number, b?: string): number { return 1; }\n"
+            "}\n"
+            "function f(cb: (a?: number, b?) => void) { return 1; }\n"
+        )
+        for filename in ("a.ts", "a.tsx"):
+            functions = analyze_file.analyze_source_code(filename, code).function_list
+            self.assertEqual(
+                [('m', 1, 2), ('f', 1, 1)],
+                [(f.name, f.cyclomatic_complexity, f.parameter_count)
+                 for f in functions], filename)

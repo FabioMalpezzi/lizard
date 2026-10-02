@@ -15,6 +15,15 @@ TEMPLATE_LITERAL = (
 )
 
 
+# "??", "??=" and "?." are operators of their own, and the "?" of an optional
+# parameter, member or chain stays with its name: none of them is a ternary.
+QUESTION_MARK_TOKENS = (
+    r"|(?:\?\?=?)"
+    r"|(?:\?\.(?!\d))"
+    r"|(?:\w+\?(?=\.(?!\d)|\s*[:,)]|\Z))"
+)
+
+
 class Parenthesis(str):
     '''
     An opening parenthesis that knows what follows the one that closes it:
@@ -127,7 +136,7 @@ class TypeScriptReader(CodeReader, CCppCommentsMixin):
     @staticmethod
     def generate_tokens(source_code, addition='', token_class=None):
         # Private method (#), dollar ($), optional chaining (?), template literals
-        addition = addition + r"|(?:#\w+)" + r"|(?:\$\w+)" + r"|(?:\w+\?)" + r"|" + TEMPLATE_LITERAL
+        addition = addition + r"|(?:#\w+)" + r"|(?:\$\w+)" + QUESTION_MARK_TOKENS + r"|" + TEMPLATE_LITERAL
         return mark_parentheses(TypeScriptReader._generate_tokens(
             source_code, addition, token_class))
 
@@ -408,10 +417,10 @@ class TypeScriptStates(CodeStateMachine):
                     self.last_tokens = token
                     return
 
-        if token == '.':
+        if token in ('.', '?.'):
             self._state = self._field
             self.last_tokens += token
-            self._prev_token = token
+            self._prev_token = '.'
             return
         if token == 'function':
             if self.started_function and not self.as_object:
@@ -601,8 +610,8 @@ class TypeScriptStates(CodeStateMachine):
             self._dec(token)
 
     def _field(self, token):
-        if token == '[':
-            # obj?.[index]
+        if token in ('[', '('):
+            # obj?.[index] and obj?.(argument)
             self.next(self._state_global, token)
             return
         self.last_tokens += token

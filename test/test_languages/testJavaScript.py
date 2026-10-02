@@ -66,6 +66,20 @@ class Test_tokenizing_JavaScript(unittest.TestCase):
     def test_a_slash_without_its_pair_is_not_a_regular_expression(self):
         self.check_tokens(['a', '=', '/', 'b', '\n', 'c', '/', 'd'], 'a=/b\nc/d')
 
+    def test_nullish_coalescing_is_one_token(self):
+        self.check_tokens(['a', ' ', '??', ' ', 'b'], 'a ?? b')
+        self.check_tokens(['a', '??', 'b'], 'a??b')
+        self.check_tokens(['a', ' ', '??=', ' ', 'b'], 'a ??= b')
+
+    def test_optional_chaining_is_one_token(self):
+        self.check_tokens(['a?', '.', 'b'], 'a?.b')
+        self.check_tokens(['f', '(', ')', '?.', 'b'], 'f()?.b')
+        self.check_tokens(['a', '[', '0', ']', '?.', '[', '1', ']'], 'a[0]?.[1]')
+
+    def test_ternary_without_spaces(self):
+        self.check_tokens(['a', '?', 'b', ':', 'c'], 'a?b:c')
+        self.check_tokens(['a', '?', '.', '5', ':', 'c'], 'a?.5:c')
+
     def test_tokenizing_javascript_multiple_line_string(self):
         self.check_tokens(['"aaa\\\nbbb"'], '"aaa\\\nbbb"')
 
@@ -961,3 +975,50 @@ class Test_js_function_end_after_regular_expressions(unittest.TestCase):
             "}\n"
         )
         self.assertEqual(1, get_js_function_list(code)[0].cyclomatic_complexity)
+
+
+class Test_js_question_mark_operators(unittest.TestCase):
+
+    def ccn(self, body, filename="a.js"):
+        code = "function a(x, y) {\n  " + body + "\n}\n"
+        functions = analyze_file.analyze_source_code(filename, code).function_list
+        return [(f.name, f.cyclomatic_complexity) for f in functions]
+
+    def check_ccn(self, expected, body):
+        for filename in ("a.js", "a.ts", "a.jsx", "a.tsx"):
+            self.assertEqual([('a', expected)], self.ccn(body, filename),
+                             body + " in " + filename)
+
+    def test_nullish_coalescing_is_not_a_ternary(self):
+        self.check_ccn(1, "return x ?? y;")
+        self.check_ccn(1, "return x??y;")
+
+    def test_nullish_assignment_is_not_a_ternary(self):
+        self.check_ccn(1, "x ??= y;")
+
+    def test_optional_chaining_is_not_a_ternary(self):
+        self.check_ccn(1, "return x?.y?.z;")
+        self.check_ccn(1, "return f(x)?.y;")
+        self.check_ccn(1, "return x[0]?.[1];")
+        self.check_ccn(1, "return x.close?.();")
+
+    def test_ternary_is_counted_with_and_without_spaces(self):
+        self.check_ccn(2, "return x ? y : 0;")
+        self.check_ccn(2, "return x?y:0;")
+        self.check_ccn(3, "return x ?? (y ? 1 : x?.z ? 2 : 3);")
+
+    def test_function_end_after_an_optional_call(self):
+        code = (
+            "function a(server, x) {\n"
+            "  server.close?.();\n"
+            "  (await f(x))?.();\n"
+            "  return find(x)?.[1];\n"
+            "}\n"
+            "function b() { return 1; }\n"
+        )
+        for filename in ("a.js", "a.ts", "a.jsx", "a.tsx"):
+            functions = analyze_file.analyze_source_code(filename, code).function_list
+            self.assertEqual(
+                [('a', 1, 5, 1), ('b', 6, 6, 1)],
+                [(f.name, f.start_line, f.end_line, f.cyclomatic_complexity)
+                 for f in functions], filename)
