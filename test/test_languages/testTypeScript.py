@@ -1827,3 +1827,29 @@ class Test_ts_types_are_not_code(unittest.TestCase):
         self.assertEqual(
             [('(anonymous)', 3, 3, 1), ('last', 1, 4, 0), ('after', 5, 5, 0)],
             self.summary(code))
+
+
+class Test_ts_label_of_a_loop(unittest.TestCase):
+
+    def test_label_is_not_a_type_annotation(self):
+        code = (
+            "function f(a) {\n"
+            "  outer: for (let i = 0; i < a.length; i++) {\n"
+            "    for (let j = 0; j < i; j++) {\n"
+            "      if (a[j]) continue outer;\n"
+            "    }\n"
+            "  }\n"
+            "  inner:\n"
+            "  while (a.length > 1) { break inner; }\n"
+            "  again: do { a.pop(); } while (a.length < 0);\n"
+            "  return 1;\n"
+            "}\n"
+            "function after(a) { return a; }\n"
+        )
+        for filename in ("a.js", "a.jsx", "a.ts", "a.tsx"):
+            functions = analyze_file.analyze_source_code(
+                filename, code).function_list
+            self.assertEqual(
+                [('f', 1, 11, 6), ('after', 12, 12, 1)],
+                [(f.name, f.start_line, f.end_line, f.cyclomatic_complexity)
+                 for f in functions], filename)
