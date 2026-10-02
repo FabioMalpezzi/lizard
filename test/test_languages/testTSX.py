@@ -1094,3 +1094,19 @@ class Test_TSX_slash_and_quotes_in_the_text_of_a_tag(unittest.TestCase):
                          [(f.name, f.start_line, f.end_line,
                            f.cyclomatic_complexity)
                           for f in get_tsx_function_list(code)])
+
+
+class Test_TSX_ternary_around_tags_with_attributes(unittest.TestCase):
+
+    def test_colon_of_the_ternary_after_an_attribute_expression(self):
+        code = (
+            "function F(c, lines) {\n"
+            "  t = c ? <>{f && <Text dimColor={true}>{g(f)}</Text>}</> : <>{lines.map((line, i) => {\n"
+            "        return line;\n"
+            "      })}</>;\n"
+            "}\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual([('(anonymous)', 2, 4), ('F', 1, 5), ('after', 6, 6)],
+                         [(f.name, f.start_line, f.end_line)
+                          for f in get_tsx_function_list(code)])
