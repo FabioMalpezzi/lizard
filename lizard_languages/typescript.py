@@ -235,11 +235,18 @@ class TypeScriptStates(CodeStateMachine):
         self._plain_colons = []  # Tokens whose colon is to come: ?, case, default
         self._after_label = False  # The last colon was the one of a case label
         self._token = None  # The token being read
+        self._read_again = None  # The token that ended a type annotation
         self._last_line = 0  # The line of the token before it
 
     def __call__(self, token, reader=None):
         self._token = token
         exiting = super().__call__(token, reader)
+        while self._read_again is not None:
+            # The token that ended a type annotation, read after the
+            # callback of the annotation: the callback it sets is kept.
+            token, self._read_again = self._read_again, None
+            self._token = token
+            exiting = super().__call__(token, reader)
         self._token = None
         self._last_line = self.context.current_line
         return exiting
@@ -674,7 +681,7 @@ class TypeScriptStates(CodeStateMachine):
         if token == '<':
             # Generic type params: function name<T>(...) — consume <...>
             # so function_name (already set) is preserved.
-            self._consume_generic_type_params()
+            self._consume_generic_type_params(self._function)
             return
         if token.startswith('<') and token.endswith('>') and len(token) > 1:
             # Single-token generic from TSX tokenizer (e.g., <T>, <Props>)
@@ -792,10 +799,11 @@ class TypeScriptStates(CodeStateMachine):
             return s
         return parts[0][0].lower() + parts[0][1:] + ''.join(p.capitalize() for p in parts[1:])
 
-    def _consume_generic_type_params(self):
+    def _consume_generic_type_params(self, then=None):
         """Consume <...> generic type parameters (e.g., method<T>(...))
         so the method name in last_tokens is preserved."""
         depth = 1
+        then = then or self._state_global
 
         def consume(token):
             nonlocal depth
@@ -804,15 +812,14 @@ class TypeScriptStates(CodeStateMachine):
             elif token == '>':
                 depth -= 1
                 if depth == 0:
-                    self.next(self._state_global)
+                    self.next(then)
         self.next(consume)
 
     def _consume_type_annotation(self):
         typeStates = TypeScriptTypeAnnotationStates(self.context)
 
         def callback():
-            if typeStates.saved_token:
-                self(typeStates.saved_token)
+            self._read_again = typeStates.saved_token
         self.sub_state(typeStates, callback)
 
 
