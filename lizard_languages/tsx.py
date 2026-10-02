@@ -124,6 +124,9 @@ class XMLTagWithAttrTokenizer(Tokenizer):
         self.state = self._start_of_body if opening_tag else self._global_state
         self.cache = [opening_tag or '<']
         self._attr_expr_active = False
+        # Attributes, but no "extends": it is a tag and not type parameters
+        self._attributes = False
+        self._extends = False
 
     def __call__(self, token):
         if self.sub_tokenizer:
@@ -192,6 +195,8 @@ class XMLTagWithAttrTokenizer(Tokenizer):
             # {...props}
             return self._expression()
         elif isidentifier(token):
+            self._attributes = True
+            self._extends = self._extends or token == 'extends'
             self.state = self._expecting_equal_sign
         else:
             return self.abort()
@@ -238,8 +243,9 @@ class XMLTagWithAttrTokenizer(Tokenizer):
     def _start_of_body(self, token):
         # Abort if the first token can't be JSX body content — likely type
         # parameters or type arguments: <T extends A>(x: T) => x, <T> = ...
-        if token in ('=', '=>', ';', ')', ',') or (
-                token == '(' and self.tag[:1].isupper()):
+        maybe_a_type = not self._attributes or self._extends
+        if maybe_a_type and (token in ('=', '=>', ';', ')', ',') or (
+                token == '(' and self.tag[:1].isupper())):
             return self.abort()
         self.state = self._body
         return self._body(token)
