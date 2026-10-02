@@ -1520,3 +1520,20 @@ class Test_ts_optional_marker(unittest.TestCase):
                 [('m', 1, 2), ('f', 1, 1)],
                 [(f.name, f.cyclomatic_complexity, f.parameter_count)
                  for f in functions], filename)
+
+
+class Test_ts_method_of_an_object_literal_with_a_return_type(unittest.TestCase):
+
+    def test_return_type_is_not_the_value_of_a_property(self):
+        code = (
+            "const o = {\n"
+            "  async position(): Promise<{ x: number; y: number }> {\n"
+            "    return f()\n"
+            "  },\n"
+            "  b(): number { return 1 },\n"
+            "}\n"
+        )
+        self.assertEqual(
+            [('position', 2, 4), ('b', 5, 5)],
+            [(f.name, f.start_line, f.end_line)
+             for f in get_ts_function_list(code)])
