@@ -1373,9 +1373,29 @@ class Test_ts_conditions_in_template_literals(unittest.TestCase):
         code = "function a(x) {\n  return `is it ? or && or ||`;\n}\n"
         self.assertEqual([('a', 1)], self.ccn(code))
 
-    def test_function_inside_a_template_expression_is_not_reported(self):
-        code = "function a(list) {\n  return `${list.map(x => { return x; })}`;\n}\n"
-        self.assertEqual([('a', 1)], self.ccn(code))
+    def test_function_inside_a_template_expression(self):
+        code = (
+            "function a(list) {\n"
+            "  return `<ul>${list.map(x => {\n"
+            "    return x ? `<li>${x}</li>` : '';\n"
+            "  }).join('')}</ul>`;\n"
+            "}\n"
+            "function b() { return 1; }\n"
+        )
+        functions = get_ts_function_list(code)
+        self.assertEqual(
+            [('(anonymous)', 2, 4, 2, 1), ('a', 1, 5, 1, 1), ('b', 6, 6, 1, 0)],
+            [(f.name, f.start_line, f.end_line, f.cyclomatic_complexity,
+              f.parameter_count) for f in functions])
+
+    def test_object_inside_a_template_expression(self):
+        code = (
+            "function a(x) {\n"
+            "  return `${f({ a: x, b: { c: 1 } })} and ${g(x)}`;\n"
+            "}\n"
+            "function b() { return 1; }\n"
+        )
+        self.assertEqual([('a', 1), ('b', 1)], self.ccn(code))
 
 
 class Test_ts_parameter_list(unittest.TestCase):
