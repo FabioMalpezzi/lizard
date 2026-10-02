@@ -195,6 +195,7 @@ class TypeScriptStates(CodeStateMachine):
         self._in_abstract_context = False  # Track abstract method declarations
         self._nesting_in_dec = 0  # Brackets open in a parameter list
         self._arrow_parameter = None  # The parameter of "x => ..."
+        self._plain_colons = 0  # Colons to come of a ternary or of a case label
 
     def statemachine_before_return(self):
         # Ensure the main function is closed at the end
@@ -218,6 +219,17 @@ class TypeScriptStates(CodeStateMachine):
             self.next(skip_declared_function)
             return
         self._ts_declare = False
+
+        # The colon of "a ? b : c", of "case x:" and of "default:" is not the
+        # one of a property or of a type annotation.
+        if token in ('?', 'case', 'default'):
+            self._plain_colons += 1
+        elif token == ':' and self._plain_colons:
+            self._plain_colons -= 1
+            self.last_tokens = token
+            if self._prev_token not in ('new', '.'):
+                self._prev_token = token
+            return
 
         # Skip type alias declarations: type Name = { ... }
         # These contain arrow signatures that are not runtime functions.
@@ -347,6 +359,13 @@ class TypeScriptStates(CodeStateMachine):
                     self.sub_state(self.__class__(self.context))
                     self._prev_token = token
                     return
+                if getattr(token, 'arrow', None) and self.last_tokens == ':' and (
+                        not self.started_function):
+                    # prop: a ? b : (...) => {}
+                    self.function_name = ''
+                    self._function(self.function_name)
+                    self.next(self._function, token)
+                    return
                 # In property value (after ':'), identifier( is a function call
                 # unless it's the prop name itself: prop: (...) => {} is arrow fn
                 if self._in_prop_value and (
@@ -455,6 +474,8 @@ class TypeScriptStates(CodeStateMachine):
         elif token in ('}', ')'):
             self.statemachine_return()
         elif self.context.newline or token == ';':
+            if token == ';':
+                self._plain_colons = 0
             self.function_name = ''
             self._pop_function_from_stack()
             # Reset modifiers on newline/semicolon
