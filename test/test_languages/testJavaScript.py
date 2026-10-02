@@ -1042,3 +1042,27 @@ class Test_js_question_mark_operators(unittest.TestCase):
                 [('a', 1, 5, 1), ('b', 6, 6, 1)],
                 [(f.name, f.start_line, f.end_line, f.cyclomatic_complexity)
                  for f in functions], filename)
+
+
+class Test_js_keyword_as_the_name_of_a_member(unittest.TestCase):
+
+    def test_catch_method_is_not_a_condition(self):
+        code = (
+            "function a(p, q) {\n"
+            "  p.catch(() => null);\n"
+            "  q?.catch(() => null).finally(() => 1);\n"
+            "  return p.if + p.for + p.while + p.case;\n"
+            "}\n"
+        )
+        for filename in ("a.js", "a.ts", "a.jsx", "a.tsx"):
+            functions = analyze_file.analyze_source_code(
+                filename, code).function_list
+            self.assertEqual(
+                [('(anonymous)', 1), ('(anonymous)', 1), ('(anonymous)', 1),
+                 ('a', 1)],
+                [(f.name, f.cyclomatic_complexity) for f in functions],
+                filename)
+
+    def test_catch_clause_is_still_a_condition(self):
+        code = "function a() {\n  try { f(); } catch (e) { g(); }\n}\n"
+        self.assertEqual(2, get_js_function_list(code)[0].cyclomatic_complexity)

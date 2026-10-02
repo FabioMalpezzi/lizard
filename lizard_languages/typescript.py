@@ -37,15 +37,36 @@ class Parenthesis(str):
         return token
 
 
+class MemberName(str):
+    '''
+    A keyword used as the name of a member, p.catch(f) or o.if. It is not
+    equal to the keyword, so that it is neither a condition nor a structure.
+    '''
+    def __eq__(self, other):
+        return isinstance(other, MemberName) and str.__eq__(self, other)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    __hash__ = str.__hash__
+
+
 def mark_parentheses(tokens):
     '''
     Replace the opening parentheses of the tokens with a Parenthesis. The
     states read the tokens one at a time, and cannot know from "(" alone if
-    "x = (a, b) => a" or "x = (a + b) * c" follows.
+    "x = (a, b) => a" or "x = (a + b) * c" follows. A keyword after "." or
+    "?." becomes a MemberName.
     '''
     tokens = list(tokens)
     opened = []
+    previous = ''  # The last token that is not white space or a comment
     for index, token in enumerate(tokens):
+        if previous in ('.', '?.') and token in (
+                'if', 'for', 'while', 'catch', 'case'):
+            tokens[index] = MemberName(token)
+        if not (token.isspace() or token.startswith(('//', '/*'))):
+            previous = token
         if token == '(':
             opened.append(index)
         elif token == ')' and opened:

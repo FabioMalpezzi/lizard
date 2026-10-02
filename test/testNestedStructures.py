@@ -611,3 +611,8 @@ class TestJavaScriptNestedStructures(unittest.TestCase):
         self.nested_structures("a.js", self.REGEX)
         self.assertEqual([('nested', 3)], self.nested_structures("b.js", self.NESTED))
         self.assertEqual([('nested', 3)], self.nested_structures("b.ts", self.NESTED))
+
+    def test_catch_method_is_not_a_structure(self):
+        code = "function f(p) {\n  return p.catch(() => null);\n}\n"
+        self.assertEqual([('(anonymous)', 0), ('f', 0)],
+                         self.nested_structures("a.js", code))
