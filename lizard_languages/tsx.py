@@ -27,7 +27,7 @@ class TSXReader(TypeScriptReader):
         # Add support for TypeScript type annotations in JSX
         addition = addition + \
             r"|(?:<[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*>)" + \
-            r"|(?:<\/[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*>)" + \
+            r"|(?:<\/[A-Za-z][\w.:-]*>)" + \
             r"|(?:<\/?>)" + \
             r"|(?:#\w+)" + \
             r"|(?:\$\w+)" + \
@@ -40,12 +40,15 @@ class TSXReader(TypeScriptReader):
         def read(source):
             for token in js_style_literal_tokens(
                     CodeReader.generate_tokens, source, addition, token_class):
-                if token.startswith('//') and js_tokenizer.reads_text():
-                    # https://example.com in the text of a tag: the "//"
-                    # does not start a comment
-                    for tok in js_tokenizer('//'):
+                prefix = next((p for p in ('//', '#') if token.startswith(p)),
+                              None)
+                if prefix and js_tokenizer.reads_text():
+                    # https://example.com or PR #{n} in the text of a tag:
+                    # "//" does not start a comment, "#" does not start a
+                    # line of the preprocessor
+                    for tok in js_tokenizer(prefix):
                         yield tok
-                    for tok in read(token[2:]):
+                    for tok in read(token[len(prefix):]):
                         yield tok
                     continue
                 for tok in js_tokenizer(token):
@@ -148,7 +151,7 @@ class XMLTagWithAttrTokenizer(Tokenizer):
     def reads_text(self):
         if self.sub_tokenizer:
             return self.sub_tokenizer.reads_text()
-        return self.state == self._body
+        return self.state in (self._start_of_body, self._body)
 
     def left_over(self):
         return self.cache + super().left_over()

@@ -1022,3 +1022,38 @@ class Test_TSX_address_in_the_text_of_a_tag(unittest.TestCase):
                          [(f.name, f.start_line, f.end_line,
                            f.cyclomatic_complexity)
                           for f in get_tsx_function_list(code)])
+
+
+class Test_TSX_hash_and_dash_in_tags(unittest.TestCase):
+
+    def test_hash_in_the_text_is_not_a_preprocessor_line(self):
+        code = (
+            "function A(pr) {\n"
+            "  return <Text bold>PR #{pr.number}</Text>;\n"
+            "}\n"
+            "function B(x) {\n"
+            "  return <b>#</b>;\n"
+            "}\n"
+            "function C(x) {\n"
+            "  return <Text color=\"a\">#</Text>;\n"
+            "}\n"
+            "// end\n"
+        )
+        self.assertEqual([('A', 1, 3), ('B', 4, 6), ('C', 7, 9)],
+                         [(f.name, f.start_line, f.end_line)
+                          for f in get_tsx_function_list(code)])
+
+    def test_closing_tag_with_a_dash_in_its_name(self):
+        code = (
+            "function A(t) {\n"
+            "  return <ink-text>{t}</ink-text>;\n"
+            "}\n"
+            "// end\n"
+            "function B(x) {\n"
+            "  return <ink-box>if while</ink-box>;\n"
+            "}\n"
+        )
+        self.assertEqual([('A', 1, 3, 1), ('B', 5, 7, 1)],
+                         [(f.name, f.start_line, f.end_line,
+                           f.cyclomatic_complexity)
+                          for f in get_tsx_function_list(code)])
