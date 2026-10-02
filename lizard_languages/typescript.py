@@ -26,15 +26,45 @@ QUESTION_MARK_TOKENS = (
 
 class Parenthesis(str):
     '''
-    An opening parenthesis that knows what follows the one that closes it:
-    "=>" after the parameters of an arrow function (arrow is True) or
-    anything else but a ":" (arrow is False). Before a ":" the parenthesis
-    stays a plain string: a return type may follow, or not.
+    An opening parenthesis that knows if the one that closes it is followed
+    by the "=>" of an arrow function, at once or after a return type.
     '''
     def __new__(cls, arrow):
         token = super().__new__(cls, '(')
         token.arrow = arrow
         return token
+
+
+# What cannot be in the return type of an arrow function, outside brackets
+_NOT_IN_A_RETURN_TYPE = frozenset((
+    ';', ',', '=', '{', '}', '?', ':', '`', 'return', 'const', 'let', 'var',
+    'if', 'for', 'while', 'throw', 'function', 'class', 'await', 'new',
+    'yield', 'case', 'default'))
+
+
+def _arrow_follows(tokens):
+    '''
+    True when the tokens after a ")" start with "=>", or with ":", a return
+    type and "=>".
+    '''
+    tokens = (token for token in tokens
+              if not (token.isspace() or token.startswith(('//', '/*'))))
+    token = next(tokens, '')
+    if token != ':':
+        return token == '=>'
+    depth = 0
+    for token in tokens:
+        if token == '=>' and not depth:
+            return True
+        if token in ('(', '[', '<'):
+            depth += 1
+        elif token in (')', ']', '>'):
+            depth -= 1
+            if depth < 0:
+                break
+        elif not depth and token in _NOT_IN_A_RETURN_TYPE:
+            break
+    return False
 
 
 def mark_parentheses(tokens):
@@ -49,13 +79,8 @@ def mark_parentheses(tokens):
         if token == '(':
             opened.append(index)
         elif token == ')' and opened:
-            following = next(
-                (t for t in tokens[index + 1:index + 50]
-                 if not (t.isspace() or t.startswith(('//', '/*')))), '')
-            if following != ':':
-                tokens[opened.pop()] = Parenthesis(following == '=>')
-            else:
-                opened.pop()
+            tokens[opened.pop()] = Parenthesis(
+                _arrow_follows(tokens[index + 1:index + 80]))
     return tokens
 
 
@@ -420,9 +445,10 @@ class TypeScriptStates(CodeStateMachine):
                 if getattr(token, 'arrow', None) and not self.started_function:
                     # The parameters of an arrow function. It has the name
                     # of its field or property, field = (...) => {} and
-                    # prop: (...) => {}, and none anywhere else in a value,
+                    # prop: (...) => {}, also after its type parameters,
+                    # and none anywhere else in a value,
                     # prop: a ? b : (...) => {}
-                    if not (self.last_tokens == '=' or (
+                    if not (self.last_tokens in ('=', '>') or (
                             self._in_prop_value
                             and self.last_tokens == self.function_name)):
                         self.function_name = ''

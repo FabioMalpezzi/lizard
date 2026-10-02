@@ -1428,6 +1428,35 @@ class Test_ts_parameter_list(unittest.TestCase):
         code = "const f = (a: number, b: number): number => { return a + b; };"
         self.assertEqual([('f', 2)], self.parameter_counts(code))
 
+    def test_anonymous_arrow_function_with_a_return_type(self):
+        code = "const r = list.map((x: number, i: number): number => x + i);"
+        self.assertEqual([('(anonymous)', 2)], self.parameter_counts(code))
+
+    def test_anonymous_arrow_function_with_a_generic_return_type(self):
+        code = (
+            "run(async (id: string, n: number): Promise<Map<string, number>> => {\n"
+            "  return load(id, n);\n"
+            "});\n"
+        )
+        self.assertEqual([('(anonymous)', 2)], self.parameter_counts(code))
+
+    def test_arrow_function_with_a_type_predicate(self):
+        code = "const isA = (x: unknown): x is A => typeof x === 'object';"
+        self.assertEqual([('isA', 1)], self.parameter_counts(code))
+
+    def test_parenthesized_expression_before_a_colon(self):
+        code = (
+            "function f(flag: boolean, a: number, b: number) {\n"
+            "  const v = flag ? (a) : b;\n"
+            "  switch (v) {\n"
+            "    case (1): return a;\n"
+            "    default: return (b);\n"
+            "  }\n"
+            "}\n"
+            "function g() { return 1; }\n"
+        )
+        self.assertEqual([('f', 3), ('g', 0)], self.parameter_counts(code))
+
     def test_parenthesized_expression_before_a_type_assertion(self):
         code = (
             "function f(a: unknown) {\n"
