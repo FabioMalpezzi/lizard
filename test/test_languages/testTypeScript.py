@@ -1573,3 +1573,78 @@ class Test_ts_declaration_after_an_arrow_function_without_braces(unittest.TestCa
                 [('isP', 1, 2), ('g', 6, 6)],
                 [(f.name, f.start_line, f.end_line)
                  for f in get_ts_function_list(code)], declaration)
+
+
+class Test_ts_function_with_a_return_type_or_type_parameters(unittest.TestCase):
+
+    def summary(self, code, filename="a.ts"):
+        functions = analyze_file.analyze_source_code(filename, code).function_list
+        return [(f.name, f.start_line, f.end_line, f.parameter_count)
+                for f in functions]
+
+    def test_function_with_a_return_type_ends_at_its_closing_brace(self):
+        code = (
+            "export function typed(a: number): number {\n"
+            "  return a;\n"
+            "}\n"
+            "\n"
+            "export function next(a: number, b: number): number {\n"
+            "  return a + b;\n"
+            "}\n"
+            "\n"
+            "const x = 1;\n"
+        )
+        self.assertEqual([('typed', 1, 3, 1), ('next', 5, 7, 2)],
+                         self.summary(code))
+
+    def test_function_with_a_generic_return_type(self):
+        code = (
+            "function load(a: string): Promise<Map<string, number>> {\n"
+            "  return read(a);\n"
+            "}\n"
+            "\n"
+            "function after(): void {}\n"
+        )
+        self.assertEqual([('load', 1, 3, 1), ('after', 5, 5, 0)],
+                         self.summary(code))
+
+    def test_generic_function(self):
+        code = (
+            "export function first<T>(list: T[]) {\n"
+            "  return list[0];\n"
+            "}\n"
+            "\n"
+            "function identity<T, U extends object>(arg: T, other: U): T {\n"
+            "  return arg;\n"
+            "}\n"
+            "\n"
+            "function after(): void {}\n"
+        )
+        self.assertEqual(
+            [('first', 1, 3, 1), ('identity', 5, 7, 2), ('after', 9, 9, 0)],
+            self.summary(code))
+
+    def test_generic_function_in_tsx(self):
+        code = (
+            "export function first<T>(list: T[]): T {\n"
+            "  return list[0];\n"
+            "}\n"
+            "\n"
+            "function after(): void {}\n"
+        )
+        self.assertEqual([('first', 1, 3, 1), ('after', 5, 5, 0)],
+                         self.summary(code, "a.tsx"))
+
+    def test_method_with_a_return_type(self):
+        code = (
+            "class Box<T> {\n"
+            "  get(): T {\n"
+            "    return this.v;\n"
+            "  }\n"
+            "\n"
+            "  map<U>(f: (v: T) => U): Box<U> {\n"
+            "    return new Box();\n"
+            "  }\n"
+            "}\n"
+        )
+        self.assertEqual([('get', 2, 4, 0), ('map', 6, 8, 1)], self.summary(code))
