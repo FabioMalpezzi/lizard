@@ -49,6 +49,16 @@ class MemberName(str):
     __hash__ = str.__hash__
 
 
+class EndOfAttribute(str):
+    '''
+    The ";" the TSX/JSX reader gives after the expression of an attribute,
+    onClick={() => f()}: it ends an arrow function without braces in the
+    expression, and not the statement around the tag.
+    '''
+    def __new__(cls):
+        return super().__new__(cls, ';')
+
+
 class TypeArguments(str):
     '''
     The "<" that opens the type arguments of a call, f<A, B>(x), or the type
@@ -745,7 +755,7 @@ class TypeScriptStates(CodeStateMachine):
             self._prev_token = token
 
     def _end_of_statement(self, token):
-        if token == ';':
+        if token == ';' and not isinstance(token, EndOfAttribute):
             self._plain_colons = []
             self._class_seen = False
         self.function_name = ''

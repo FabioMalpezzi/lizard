@@ -9,6 +9,7 @@ from .code_reader import CodeReader
 from .js_style_regex_expression import js_style_literal_tokens
 from .typescript import TypeScriptReader, TEMPLATE_LITERAL, QUESTION_MARK_TOKENS
 from .typescript import JSTokenizer, Tokenizer, mark_parentheses
+from .typescript import EndOfAttribute
 
 
 class TSXReader(TypeScriptReader):
@@ -141,7 +142,7 @@ class XMLTagWithAttrTokenizer(Tokenizer):
                     # that was opened inside the attribute (e.g.
                     # onClick={() => handler()}).
                     self._attr_expr_active = False
-                    yield ';'
+                    yield EndOfAttribute()
             return
         for tok in self.process_token(token):
             yield tok
