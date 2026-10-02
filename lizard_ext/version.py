@@ -3,4 +3,4 @@
 #
 # pylint: disable=missing-docstring,invalid-name
 
-version = "1.24.0+senso.2"
+version = "1.24.0+senso.3"

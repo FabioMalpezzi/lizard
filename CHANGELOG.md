@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 1.24.0+senso.3
+
+Third Senso build of 1.24.0: 1.24.0+senso.2 with the fixes found by
+comparing it with the TypeScript parser and the Python ast module on real
+code, proposed upstream from the branches pr/js-ts-real-code-fixes and
+pr/python-closing-bracket-line.
+
+### Bug Fixes
+- JavaScript/TypeScript: decisions in the spread of a call in an object literal; a case label after an arrow function without braces; a line comment ending with a backslash; the end of a function that returns an arrow function without braces
+- TypeScript: the `?` of a type is not a decision; a parameter named as a type is counted, the `this` parameter is not
+- Python: a function whose parameter list closes on a line of its own after a default value with brackets
+
 ## 1.24.0+senso.2
 
 Build of 1.24.0 kept in the fork FabioMalpezzi/lizard for Senso, until the
