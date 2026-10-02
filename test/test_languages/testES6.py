@@ -1184,3 +1184,25 @@ class Test_ES6_arrow_function_ended_by_the_next_line(unittest.TestCase):
         functions = get_js_function_list(code)
         self.assertEqual([('(anonymous)', 2, 2, 1)], function_summary(functions))
         self.assertEqual(1, functions[0].nloc)
+
+
+class Test_es6_arrow_function_in_a_branch_of_a_ternary(unittest.TestCase):
+
+    def test_arrow_function_ends_before_the_colon_of_the_ternary(self):
+        code = (
+            "const s = {\n"
+            "  skip: zip\n"
+            "    ? (name, source) =>\n"
+            "        !supported(source)\n"
+            "    : undefined,\n"
+            "  other: a ? (x) => x : (y) => y,\n"
+            "}\n"
+            "function after(a) { return a; }\n"
+        )
+        for filename in ("a.js", "a.ts", "a.tsx"):
+            self.assertEqual(
+                [('(anonymous)', 3, 4), ('(anonymous)', 6, 6),
+                 ('(anonymous)', 6, 6), ('after', 8, 8)],
+                [(f.name, f.start_line, f.end_line) for f in
+                 analyze_file.analyze_source_code(filename, code).function_list],
+                filename)
