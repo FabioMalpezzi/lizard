@@ -737,3 +737,31 @@ class Test_TSX_class_with_static_fields(unittest.TestCase):
         # static field names should NOT appear as functions
         self.assertNotIn("propTypes", names)
         self.assertNotIn("defaultProps", names)
+
+
+class Test_TSX_template_literals(unittest.TestCase):
+
+    def test_ternary_in_a_template_expression(self):
+        code = (
+            "function Label(props) {\n"
+            "  const text = `v: ${props.on ? 'y' : 'n'}`;\n"
+            "  return <span>{text}</span>;\n"
+            "}\n"
+            "function b() { return 1; }\n"
+        )
+        functions = get_tsx_function_list(code)
+        self.assertEqual([('Label', 1, 4, 2), ('b', 5, 5, 1)],
+                         [(f.name, f.start_line, f.end_line, f.cyclomatic_complexity)
+                          for f in functions])
+
+    def test_nested_template_literal_in_an_attribute(self):
+        code = (
+            "function Label(props) {\n"
+            "  return <span className={`a ${props.on ? `b-${props.kind}` : ''}`}>x</span>;\n"
+            "}\n"
+            "function b() { return 1; }\n"
+        )
+        functions = get_tsx_function_list(code)
+        self.assertEqual([('Label', 1, 3, 2), ('b', 4, 4, 1)],
+                         [(f.name, f.start_line, f.end_line, f.cyclomatic_complexity)
+                          for f in functions])
