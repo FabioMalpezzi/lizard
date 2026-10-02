@@ -337,13 +337,18 @@ class TypeScriptStates(CodeStateMachine):
 
         if self.as_object:
             # Support for getter/setter: look for 'get' or 'set' before method name
-            if token in ('get', 'set'):
-                self._getter_setter_prefix = token
-                return
             if self._getter_setter_prefix:
-                # Next token is the property name
-                self.last_tokens = f"{self._getter_setter_prefix} {token}"
+                prefix = self._getter_setter_prefix
                 self._getter_setter_prefix = None
+                if token[0].isalnum() or token[0] in '_$#"\'':
+                    # Next token is the property name
+                    self.last_tokens = f"{prefix} {token}"
+                    return
+                # No name follows: "get" or "set" was the name itself, of a
+                # method, get() {}, or of a property, { get, set: 1 }
+                self.last_tokens = prefix
+            elif token in ('get', 'set'):
+                self._getter_setter_prefix = token
                 return
             in_value = self._in_prop_value or self._in_field_value
             if token == '[' and not in_value:
