@@ -1642,3 +1642,153 @@ class Test_ts_function_with_a_return_type_or_type_parameters(unittest.TestCase):
             "}\n"
         )
         self.assertEqual([('get', 2, 4, 0), ('map', 6, 8, 1)], self.summary(code))
+
+
+class Test_ts_types_are_not_code(unittest.TestCase):
+
+    def summary(self, code, filename="a.ts"):
+        functions = analyze_file.analyze_source_code(filename, code).function_list
+        return [(f.name, f.start_line, f.end_line, f.parameter_count)
+                for f in functions]
+
+    def test_class_fields_with_a_function_type(self):
+        code = (
+            "class Engine {\n"
+            "  private persistence: Persistence;\n"
+            "  public log: (s: string) => void;\n"
+            "  private onDisable?: (id: string, error: unknown) => void;\n"
+            "  handler: (e: Event) => void = (e) => { use(e); };\n"
+            "\n"
+            "  constructor(executor: Executor, log: (s: string) => void) {\n"
+            "    this.log = log;\n"
+            "  }\n"
+            "}\n"
+        )
+        self.assertEqual([('handler', 5, 5, 1), ('constructor', 7, 9, 2)],
+                         self.summary(code))
+
+    def test_class_fields_without_semicolons(self):
+        code = (
+            "class Engine {\n"
+            "  log: (s: string) => void\n"
+            "  kind:\n"
+            "    | 'a'\n"
+            "    | 'b'\n"
+            "  run(): void { this.log('x') }\n"
+            "}\n"
+        )
+        self.assertEqual([('run', 6, 6, 0)], self.summary(code))
+
+    def test_type_arguments_with_a_function_type(self):
+        code = (
+            "class Engine {\n"
+            "  handlers = new Map<string, () => void>();\n"
+            "  run(): void {\n"
+            "    const ref = useRef<((value: boolean) => void) | null>(null);\n"
+            "    const small = a < b && c > (d);\n"
+            "  }\n"
+            "}\n"
+        )
+        self.assertEqual([('run', 3, 6, 0)], self.summary(code))
+
+    def test_type_parameters_with_a_function_type(self):
+        code = (
+            "export class HookBus<T extends (...args: any[]) => any> {\n"
+            "  private handlers: Entry<T>[] = [];\n"
+            "  add(handler: T): void { this.handlers.push(handler); }\n"
+            "}\n"
+            "interface State<T extends { id: string }> {\n"
+            "  pending: T[];\n"
+            "  fetch: (client: Client) => Promise<void>;\n"
+            "  reset: () => void;\n"
+            "}\n"
+            "function after(): void {}\n"
+        )
+        self.assertEqual([('add', 3, 3, 1), ('after', 10, 10, 0)],
+                         self.summary(code))
+
+    def test_type_after_as_and_satisfies(self):
+        code = (
+            "function zones(): string[] {\n"
+            "  const intl = Intl as unknown as { supported?: (key: string) => string[] };\n"
+            "  const conf = { run: () => 1 } satisfies { run: () => number };\n"
+            "  return (intl.supported as (key: string) => string[])('timeZone');\n"
+            "}\n"
+            "function after(): void {}\n"
+        )
+        self.assertEqual(
+            [('run', 3, 3, 0), ('zones', 1, 5, 0), ('after', 6, 6, 0)],
+            self.summary(code))
+
+    def test_type_alias_with_a_function_type_on_many_lines(self):
+        code = (
+            "type Connect = (\n"
+            "  address: { hostname: string; port: number },\n"
+            "  options: { secure: 'on' | 'off' },\n"
+            ") => Socket;\n"
+            "\n"
+            "type Other =\n"
+            "  | ((a: number) => void)\n"
+            "  | null;\n"
+            "function after(): void {}\n"
+        )
+        self.assertEqual([('after', 9, 9, 0)], self.summary(code))
+
+    def test_variable_with_a_function_type(self):
+        code = (
+            "function filter(value: Json) {\n"
+            "  const predicates: ((event: Obj) => boolean)[] = [];\n"
+            "  let check: (event: Obj) => boolean;\n"
+            "  return predicates;\n"
+            "}\n"
+        )
+        self.assertEqual([('filter', 1, 5, 1)], self.summary(code))
+
+    def test_function_type_as_a_return_type(self):
+        code = (
+            "function filter(value: Json, depth = 0): (event: Obj) => boolean {\n"
+            "  return () => true;\n"
+            "}\n"
+            "function after(): void {}\n"
+        )
+        self.assertEqual(
+            [('(anonymous)', 2, 2, 0), ('filter', 1, 3, 2), ('after', 4, 4, 0)],
+            self.summary(code))
+
+    def test_object_types_as_a_return_type(self):
+        code = (
+            "class Engine {\n"
+            "  run(): { ok: true } | { ok: false; error: string } {\n"
+            "    return { ok: true };\n"
+            "  }\n"
+            "}\n"
+            "function isComplete(post: Post | null): post is Post & {\n"
+            "  id: string;\n"
+            "} {\n"
+            "  return post !== null;\n"
+            "}\n"
+            "const load = (id: string): { ok: boolean; out: string } => {\n"
+            "  return read(id);\n"
+            "};\n"
+            "function after(): void {}\n"
+        )
+        self.assertEqual(
+            [('run', 2, 4, 0), ('isComplete', 6, 10, 1), ('load', 11, 13, 1),
+             ('after', 14, 14, 0)],
+            self.summary(code))
+
+    def test_arrow_function_with_an_object_type_in_its_type_predicate(self):
+        code = "const emails = list.filter((r): r is { email: string } => !!r.email);"
+        self.assertEqual([('(anonymous)', 1, 1, 1)], self.summary(code))
+
+    def test_type_annotation_ends_at_the_end_of_the_line_or_of_the_block(self):
+        code = (
+            "function last(): void {\n"
+            "  let n: number\n"
+            "  call((x) => { return x; })\n"
+            "  let m: number }\n"
+            "function after(): void {}\n"
+        )
+        self.assertEqual(
+            [('(anonymous)', 3, 3, 1), ('last', 1, 4, 0), ('after', 5, 5, 0)],
+            self.summary(code))
