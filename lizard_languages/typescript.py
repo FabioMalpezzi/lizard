@@ -192,6 +192,16 @@ class TypeScriptReader(CodeReader, CCppCommentsMixin):
 # A name, also "_", "_unused" and "$element", with the "?" of an optional one
 _IDENTIFIER = re.compile(r"(?:[^\W\d]|\$)[\w$]*\??$")
 
+# An expression goes on at the next line after one of these tokens ...
+_CONTINUED_AFTER = frozenset((
+    '=>', '=', '+', '-', '*', '/', '%', '&&', '||', '??', '?', ':', '|', '&',
+    '^', '==', '===', '!=', '!==', '<=', '>=', '+=', '-=', '*=', '/=', '??='))
+# ... and a line that starts with one of these goes on with the expression
+# of the line before.
+_CONTINUED_BY = frozenset((
+    '?', ':', '&&', '||', '??', '|', '&', '^', '%', '==', '===', '!=', '!==',
+    '<=', '>=', 'instanceof', 'in'))
+
 # TypeScript type keywords that should not be counted as parameters
 _TS_TYPE_KEYWORDS = frozenset([
     'string', 'number', 'boolean', 'void', 'any',
@@ -524,7 +534,8 @@ class TypeScriptStates(CodeStateMachine):
         elif token == ',':
             # The body of an arrow function without braces ends here
             self._pop_function_from_stack()
-        elif self.context.newline or token == ';':
+        elif token == ';' or (self.context.newline and not (
+                token in _CONTINUED_BY or self.last_token in _CONTINUED_AFTER)):
             if token == ';':
                 self._plain_colons = []
             self.function_name = ''

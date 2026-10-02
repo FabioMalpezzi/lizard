@@ -1520,3 +1520,21 @@ class Test_ts_optional_marker(unittest.TestCase):
                 [('m', 1, 2), ('f', 1, 1)],
                 [(f.name, f.cyclomatic_complexity, f.parameter_count)
                  for f in functions], filename)
+
+
+class Test_ts_class_members_without_semicolons(unittest.TestCase):
+
+    def test_typed_fields_then_a_method(self):
+        code = (
+            "class A {\n"
+            "  items: Array<string>\n"
+            "  kind:\n"
+            "    | 'a'\n"
+            "    | 'b'\n"
+            "  total = this.items.length +\n"
+            "    1\n"
+            "  method() { return 1; }\n"
+            "}\n"
+        )
+        self.assertEqual(['method'],
+                         [f.name for f in get_ts_function_list(code)])

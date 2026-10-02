@@ -637,7 +637,7 @@ class Test_ES6_arrow_function_lines(unittest.TestCase):
             "function after() { return 1; }\n"
         )
         self.assertEqual(
-            [('counters', 1, 2, 1), ('(anonymous)', 2, 2, 1), ('after', 3, 3, 1)],
+            [('(anonymous)', 2, 2, 1), ('counters', 1, 2, 1), ('after', 3, 3, 1)],
             function_summary(get_js_function_list(code)))
 
     def test_anonymous_arrow_function_with_its_body_on_the_next_line(self):
@@ -1000,3 +1000,51 @@ class Test_ES6_blocks_of_statements(unittest.TestCase):
             "function after() { return 1; }\n"
         )
         self.assertEqual([('b', 1, 9), ('after', 10, 10)], self.names(code))
+
+
+class Test_ES6_expression_on_many_lines(unittest.TestCase):
+    """A new line does not end an expression that goes on."""
+
+    def test_arrow_function_body_on_the_next_lines(self):
+        code = (
+            "const pick = (a, b) =>\n"
+            "  a && b\n"
+            "    ? a\n"
+            "    : b || 0;\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual([('pick', 1, 4, 4), ('after', 5, 5, 1)],
+                         function_summary(get_js_function_list(code)))
+
+    def test_arrow_function_body_that_ends_a_line_with_an_operator(self):
+        code = (
+            "const counters = event =>\n"
+            "  ['a', 'b'].filter(key => event[key] != null).join(' ') ||\n"
+            "  unknown();\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual(
+            [('(anonymous)', 2, 2, 1), ('counters', 1, 3, 2), ('after', 4, 4, 1)],
+            function_summary(get_js_function_list(code)))
+
+    def test_statements_without_semicolons_still_end_at_the_line(self):
+        code = (
+            "const inc = x => x + 1\n"
+            "const dec = x => x - 1\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual(['inc', 'dec', 'after'],
+                         [f.name for f in get_js_function_list(code)])
+
+    def test_property_value_on_many_lines(self):
+        code = (
+            "const o = {\n"
+            "  a: cond\n"
+            "    ? (x) => { return 1; }\n"
+            "    : (y, z) => { return 2; },\n"
+            "  b() { return 3; },\n"
+            "};\n"
+        )
+        self.assertEqual(
+            [('(anonymous)', 1), ('(anonymous)', 2), ('b', 0)],
+            [(f.name, f.parameter_count) for f in get_js_function_list(code)])
