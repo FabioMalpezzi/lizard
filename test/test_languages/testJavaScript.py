@@ -1122,3 +1122,13 @@ class Test_js_decisions_in_their_function(unittest.TestCase):
             "}\n"
         )
         self.check([('b', 1, 8, 4)], code)
+
+    def test_question_mark_in_a_type_is_not_a_decision(self):
+        code = (
+            "function g(e: unknown, t: number) {\n"
+            "  const h = (e as { 'retry-after'?: string })['retry-after']\n"
+            "  let tip: (T extends Map<string, infer U> ? U : never) | null = null\n"
+            "  return h || t\n"
+            "}\n"
+        )
+        self.check([('g', 1, 5, 2)], code, ("a.ts", "a.tsx"))

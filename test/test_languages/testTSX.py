@@ -1110,3 +1110,20 @@ class Test_TSX_ternary_around_tags_with_attributes(unittest.TestCase):
         self.assertEqual([('(anonymous)', 2, 4), ('F', 1, 5), ('after', 6, 6)],
                          [(f.name, f.start_line, f.end_line)
                           for f in get_tsx_function_list(code)])
+
+
+class Test_TSX_text_that_looks_like_code(unittest.TestCase):
+
+    def test_colon_and_keywords_alone_in_the_text(self):
+        code = (
+            "function A(d) {\n"
+            "  return <p>{d.line + 1}:{d.col}{d.code ? 1 : 2}<b>if</b><i>for</i></p>;\n"
+            "}\n"
+            "function after() { return 1; }\n"
+        )
+        for filename in ("a.jsx", "a.tsx"):
+            self.assertEqual(
+                [('A', 1, 3, 2), ('after', 4, 4, 1)],
+                [(f.name, f.start_line, f.end_line, f.cyclomatic_complexity)
+                 for f in analyze_file.analyze_source_code(
+                     filename, code).function_list], filename)

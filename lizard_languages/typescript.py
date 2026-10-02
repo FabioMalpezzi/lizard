@@ -1046,8 +1046,17 @@ class TypeScriptTypeAnnotationStates(CodeStateMachine):
         # argument of import('m'): True, False, or None while not known
         self._parameters = None
         self._inside = []  # Their first tokens
+        self._question = False  # The last token was a "?" not yet counted
+        self._extends = False  # A conditional type: its "?" is not code
 
     def _state_global(self, token):
+        # The "?" of a type, { 'a-b'?: T } or A extends B ? C : D, is not a
+        # decision: the counter of the conditions has already read it.
+        if self._question and token == ':' or (
+                token == '?' and self._extends):
+            self.context.add_condition(-1)
+        self._question = token == '?' and not self._extends
+        self._extends = self._extends or token == 'extends'
         if self._to_close:
             if len(self._to_close) == 1 and self._parameters is None:
                 self._inside.append(token)
