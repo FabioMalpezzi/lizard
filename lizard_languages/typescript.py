@@ -440,6 +440,7 @@ class TypeScriptStates(CodeStateMachine):
             name = self.last_tokens
             self._arrow_parameter = name if (
                 name and (name[0].isalpha() or name[0] in '_$')) else None
+            self._start_arrow_function()
             self._state = self._arrow_function
         elif token == '=':
             # Only set function_name for valid identifiers
@@ -573,11 +574,15 @@ class TypeScriptStates(CodeStateMachine):
         self._in_prop_value = False
         self._in_field_value = False
 
-    def _arrow_function(self, token):
+    def _start_arrow_function(self):
+        # At the arrow, so that the function starts at the line of the arrow
+        # also when its body is on the next one.
         if not self.started_function:
             self._push_function_to_stack()
             if self.started_function and self._arrow_parameter:
                 self.context.parameter(self._arrow_parameter)
+
+    def _arrow_function(self, token):
         # Clear function_name so expression-body ( doesn't re-enter _function
         self.function_name = ''
         # Clear modifiers so the body's opening { isn't captured by the
