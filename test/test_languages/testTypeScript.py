@@ -1537,3 +1537,21 @@ class Test_ts_method_of_an_object_literal_with_a_return_type(unittest.TestCase):
             [('position', 2, 4), ('b', 5, 5)],
             [(f.name, f.start_line, f.end_line)
              for f in get_ts_function_list(code)])
+
+
+class Test_ts_class_members_without_semicolons(unittest.TestCase):
+
+    def test_typed_fields_then_a_method(self):
+        code = (
+            "class A {\n"
+            "  items: Array<string>\n"
+            "  kind:\n"
+            "    | 'a'\n"
+            "    | 'b'\n"
+            "  total = this.items.length +\n"
+            "    1\n"
+            "  method() { return 1; }\n"
+            "}\n"
+        )
+        self.assertEqual(['method'],
+                         [f.name for f in get_ts_function_list(code)])
