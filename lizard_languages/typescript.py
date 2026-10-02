@@ -715,8 +715,12 @@ class TypeScriptStates(CodeStateMachine):
     def _expecting_func_opening_bracket(self, token):
         # Do not reset started_function for arrow functions (=>)
         if token == ':':
+            # The return type, also of a method of an object literal, where
+            # the states would read the colon as the one of a property
+            self.next(self._state_global)
             self._consume_type_annotation()
-        elif token == ';' and self.as_object and self._in_abstract_context:
+            return
+        if token == ';' and self.as_object and self._in_abstract_context:
             # Abstract method declaration ends with ';' — no body
             if self.started_function:
                 self._pop_function_from_stack()
