@@ -258,6 +258,7 @@ class TypeScriptStates(CodeStateMachine):
         self._nesting_in_dec = 0  # Brackets open in a parameter list
         self._arrow_parameter = None  # The parameter of "x => ..."
         self._plain_colons = []  # Tokens whose colon is to come: ?, case, default
+        self._colons_before = 0  # Those already there when a function started
         self._after_label = False  # The last colon was the one of a case label
         self._token = None  # The token being read
         self._last_line = 0  # The line of the token before it
@@ -307,6 +308,11 @@ class TypeScriptStates(CodeStateMachine):
         if token in ('?', 'case', 'default'):
             self._plain_colons.append(token)
         elif token == ':' and self._plain_colons:
+            if (self._expression_body and self.started_function
+                    and len(self._plain_colons) <= self._colons_before):
+                # c ? (x) => x : y, the colon of a ternary that was open
+                # before the arrow function ends it
+                self._pop_function_from_stack()
             self._after_label = self._plain_colons.pop() != '?'
             self.last_tokens = token
             if self._prev_token not in ('new', '.'):
@@ -654,6 +660,7 @@ class TypeScriptStates(CodeStateMachine):
             return
         self.started_function = True
         self._expression_body = False
+        self._colons_before = len(self._plain_colons)
         self.context.push_new_function(self.function_name or '(anonymous)')
 
     def _pop_function_from_stack(self):
