@@ -420,10 +420,10 @@ class TypeScriptStates(CodeStateMachine):
                     self._prev_token = token
                     return
                 if getattr(token, 'arrow', None) is False and (
-                        self.last_tokens == '=' or self._in_prop_value
+                        self.last_tokens in ('=', '...') or self._in_prop_value
                         or self._in_field_value):
-                    # A parenthesized value, field = (...) or prop: (...),
-                    # is not the parameter list of an arrow function.
+                    # A parenthesized value, field = (...), prop: (...) or
+                    # ...(...), is not the parameter list of a function.
                     self.sub_state(self.__class__(self.context))
                     self._prev_token = token
                     return

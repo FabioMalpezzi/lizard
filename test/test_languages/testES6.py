@@ -1060,3 +1060,23 @@ class Test_es6_class_field_without_a_semicolon(unittest.TestCase):
             "};\n"
         )
         self.check(code, [('handler', 2, 4), ('run', 7, 7)])
+
+
+class Test_es6_spread_of_a_parenthesized_expression(unittest.TestCase):
+
+    def test_function_in_a_spread_object(self):
+        code = (
+            "const props = {\n"
+            "  ...(cond && { f: () => { return 1; } }),\n"
+            "  ...(other ? { g(x) { return x; } } : {}),\n"
+            "  h: 2,\n"
+            "};\n"
+            "function after(a) { return a; }\n"
+        )
+        for filename in ("a.js", "a.ts", "a.tsx"):
+            functions = analyze_file.analyze_source_code(
+                filename, code).function_list
+            self.assertEqual(
+                [('f', 2, 2, 1, 0), ('g', 3, 3, 1, 1), ('after', 6, 6, 1, 1)],
+                [(f.name, f.start_line, f.end_line, f.cyclomatic_complexity,
+                  f.parameter_count) for f in functions], filename)
