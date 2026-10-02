@@ -189,6 +189,10 @@ class Tokenizer(object):
     def stop(self):
         self._ended = True
 
+    def reads_text(self):
+        """True while reading the text of a TSX/JSX tag."""
+        return bool(self.sub_tokenizer) and self.sub_tokenizer.reads_text()
+
     def left_over(self):
         """The tokens read and not given yet, when the source code ends."""
         return self.sub_tokenizer.left_over() if self.sub_tokenizer else []

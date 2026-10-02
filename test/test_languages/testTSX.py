@@ -986,3 +986,39 @@ class Test_TSX_expressions_in_the_text_of_a_tag(unittest.TestCase):
             "function after() { return 1; }\n"
         )
         self.assertEqual([('B', 1, 7), ('after', 8, 8)], self.summary(code))
+
+
+class Test_TSX_address_in_the_text_of_a_tag(unittest.TestCase):
+
+    def test_double_slash_in_the_text_is_not_a_comment(self):
+        code = (
+            "function A() {\n"
+            "  return <p>Visit https://example.com today</p>;\n"
+            "}\n"
+            "function B(x) {\n"
+            "  return <div className=\"a\">\n"
+            "    see http://a.b and https://c.d/e{x} or <b>ftp://f.g</b>\n"
+            "  </div>;\n"
+            "}\n"
+            "function after() { return 1; }\n"
+        )
+        for filename in ("a.jsx", "a.tsx"):
+            functions = analyze_file.analyze_source_code(
+                filename, code).function_list
+            self.assertEqual(
+                [('A', 1, 3), ('B', 4, 8), ('after', 9, 9)],
+                [(f.name, f.start_line, f.end_line) for f in functions],
+                filename)
+
+    def test_comment_in_the_code_of_a_tag_is_still_a_comment(self):
+        code = (
+            "function A(x) {\n"
+            "  return <p>{x // if (a) {\n"
+            "  }</p>;\n"
+            "}\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual([('A', 1, 4, 1), ('after', 5, 5, 1)],
+                         [(f.name, f.start_line, f.end_line,
+                           f.cyclomatic_complexity)
+                          for f in get_tsx_function_list(code)])

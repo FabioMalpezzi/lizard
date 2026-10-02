@@ -36,15 +36,28 @@ class TSXReader(TypeScriptReader):
             r"|(?:=>)" + \
             r"|" + TEMPLATE_LITERAL
         js_tokenizer = TSXTokenizer()
-        for token in js_style_literal_tokens(
-                CodeReader.generate_tokens, source_code, addition, token_class):
-            for tok in js_tokenizer(token):
-                if tok.startswith('`') and tok.endswith('`') and len(tok) > 1:
-                    for part in TypeScriptReader._split_template_literal(
-                            tok, addition, token_class, False):
-                        yield part
-                else:
+
+        def read(source):
+            for token in js_style_literal_tokens(
+                    CodeReader.generate_tokens, source, addition, token_class):
+                if token.startswith('//') and js_tokenizer.reads_text():
+                    # https://example.com in the text of a tag: the "//"
+                    # does not start a comment
+                    for tok in js_tokenizer('//'):
+                        yield tok
+                    for tok in read(token[2:]):
+                        yield tok
+                    continue
+                for tok in js_tokenizer(token):
                     yield tok
+
+        for tok in read(source_code):
+            if tok.startswith('`') and tok.endswith('`') and len(tok) > 1:
+                for part in TypeScriptReader._split_template_literal(
+                        tok, addition, token_class, False):
+                    yield part
+            else:
+                yield tok
         # A tag that is still open at the end of the file
         for tok in js_tokenizer.left_over():
             yield tok
@@ -131,6 +144,11 @@ class XMLTagWithAttrTokenizer(Tokenizer):
     def abort(self):
         self.stop()
         return self.cache
+
+    def reads_text(self):
+        if self.sub_tokenizer:
+            return self.sub_tokenizer.reads_text()
+        return self.state == self._body
 
     def left_over(self):
         return self.cache + super().left_over()
