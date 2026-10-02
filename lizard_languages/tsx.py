@@ -235,7 +235,11 @@ class XMLTagWithAttrTokenizer(Tokenizer):
             return self.flush()
 
         if token == '{':
+            # The braces around an expression are not tokens: the closing
+            # one is taken by the tokenizer of the expression, and the
+            # opening one alone would be a brace of the code.
             self.sub_tokenizer = TSXTokenizer()
+            self.cache.pop()
             return self.flush()
 
 

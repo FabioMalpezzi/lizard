@@ -29,7 +29,7 @@ class Test_tokenizing_TSX(unittest.TestCase):
         self.check_tokens(['(', '<b>', '<b>xxx</b>', '</b>', ')'], '(<b><b>xxx</b></b>)')
 
     def test_with_embeded_code(self):
-        self.check_tokens(['<abc>{', 'x', '</abc>'], '<abc>{x}</abc>')
+        self.check_tokens(['<abc>', 'x', '</abc>'], '<abc>{x}</abc>')
 
     def test_with_attributes(self):
         self.check_tokens(['<abc x="x">a</abc>'], '<abc x="x">a</abc>')
@@ -947,3 +947,42 @@ class Test_TSX_text_is_not_code(unittest.TestCase):
         )
         self.assertEqual([('Note', 1, 6, 2), ('after', 7, 7, 1)],
                          self.summary(code))
+
+
+class Test_TSX_expressions_in_the_text_of_a_tag(unittest.TestCase):
+
+    def summary(self, code):
+        return [(f.name, f.start_line, f.end_line)
+                for f in get_tsx_function_list(code)]
+
+    def check_tokens(self, expect, source):
+        self.assertEqual(expect, list(TSXReader.generate_tokens(source)))
+
+    def test_braces_of_an_expression_are_not_tokens(self):
+        self.check_tokens(['<p a="1">', 'x', 'y', '</p>'], '<p a="1">{x}{y}</p>')
+
+    def test_two_expressions_in_a_row(self):
+        code = (
+            "function A(r) {\n"
+            "  return (\n"
+            "    <div className=\"a\">\n"
+            "      {r.required && <span style={{ color: 'red' }}>x</span>}{r.label}\n"
+            "    </div>\n"
+            "  );\n"
+            "}\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual([('A', 1, 7), ('after', 8, 8)], self.summary(code))
+
+    def test_expression_with_a_space(self):
+        code = (
+            "function B(sel, best) {\n"
+            "  return (\n"
+            "    <p className=\"b\">\n"
+            "      <span className=\"muted\">{sel}:</span> {odds(best.price)}{' '}\n"
+            "    </p>\n"
+            "  );\n"
+            "}\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual([('B', 1, 7), ('after', 8, 8)], self.summary(code))
