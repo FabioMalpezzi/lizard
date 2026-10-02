@@ -214,6 +214,16 @@ class TypeScriptReader(CodeReader, CCppCommentsMixin):
 # A name, also "_", "_unused" and "$element", with the "?" of an optional one
 _IDENTIFIER = re.compile(r"(?:[^\W\d]|\$)[\w$]*\??$")
 
+# An expression goes on at the next line after one of these tokens ...
+_CONTINUED_AFTER = frozenset((
+    '=>', '=', '+', '-', '*', '/', '%', '&&', '||', '??', '?', ':', '|', '&',
+    '^', '==', '===', '!=', '!==', '<=', '>=', '+=', '-=', '*=', '/=', '??='))
+# ... and a line that starts with one of these goes on with the expression
+# of the line before.
+_CONTINUED_BY = frozenset((
+    '?', ':', '&&', '||', '??', '|', '&', '^', '%', '==', '===', '!=', '!==',
+    '<=', '>=', 'instanceof', 'in'))
+
 # Modifiers, read before the end of a statement at a new line is
 _MODIFIERS = frozenset(('declare', 'abstract', 'static', 'async', 'get', 'set'))
 
@@ -254,7 +264,7 @@ class TypeScriptStates(CodeStateMachine):
 
     def _state_global(self, token):
         if (self.context.newline and token in _MODIFIERS
-                and self.last_token not in ('=', '=>', ':', '?')):
+                and self.last_token not in _CONTINUED_AFTER):
             # A modifier at the start of a line starts a new member or
             # statement, also after a class field without a semicolon,
             # count = 0 and handler = () => 1.
@@ -555,7 +565,8 @@ class TypeScriptStates(CodeStateMachine):
         elif token == ',':
             # The body of an arrow function without braces ends here
             self._pop_function_from_stack()
-        elif self.context.newline or token == ';':
+        elif token == ';' or (self.context.newline and not (
+                token in _CONTINUED_BY or self.last_token in _CONTINUED_AFTER)):
             self._end_of_statement(token)
 
         if not self.as_object:
