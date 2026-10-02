@@ -1417,3 +1417,68 @@ class Test_ts_parameter_list(unittest.TestCase):
             "function g() { return 1; }\n"
         )
         self.assertEqual([('f', 1), ('g', 0)], self.parameter_counts(code))
+
+
+class Test_ts_colon_that_is_not_a_type_annotation(unittest.TestCase):
+
+    def summary(self, code, filename="a.ts"):
+        functions = analyze_file.analyze_source_code(filename, code).function_list
+        return [(f.name, f.start_line, f.end_line, f.parameter_count)
+                for f in functions]
+
+    def test_arrow_function_after_the_colon_of_a_ternary(self):
+        code = (
+            "function a(x: number) {\n"
+            "  const fn = x ? null : (v: number) => { return v; };\n"
+            "  return fn;\n"
+            "}\n"
+            "function b() { return 1; }\n"
+        )
+        self.assertEqual(
+            [('(anonymous)', 2, 2, 1), ('a', 1, 4, 1), ('b', 5, 5, 0)],
+            self.summary(code))
+
+    def test_arrow_functions_in_both_branches_of_a_ternary(self):
+        code = (
+            "const f = strict\n"
+            "  ? (a, b) => { return a === b; }\n"
+            "  : (a, b, c) => { return a == b; };\n"
+        )
+        self.assertEqual(
+            [('(anonymous)', 2, 2, 2), ('(anonymous)', 3, 3, 3)],
+            self.summary(code, "a.js"))
+
+    def test_arrow_function_after_a_case_label(self):
+        code = (
+            "function a(x: number, list: number[]) {\n"
+            "  switch (x) {\n"
+            "    case 1: return list.map((v) => { return v + 1; });\n"
+            "    default: return list.filter((v, i) => { return v > i; });\n"
+            "  }\n"
+            "}\n"
+            "function b() { return 1; }\n"
+        )
+        self.assertEqual(
+            [('(anonymous)', 3, 3, 1), ('(anonymous)', 4, 4, 2),
+             ('a', 1, 6, 2), ('b', 7, 7, 0)],
+            self.summary(code))
+
+    def test_ternary_in_an_object_literal(self):
+        code = (
+            "function a(x: number) {\n"
+            "  return { kind: x ? one : (v) => { return v; } };\n"
+            "}\n"
+        )
+        self.assertEqual([('(anonymous)', 2, 2, 1), ('a', 1, 3, 1)],
+                         self.summary(code))
+
+    def test_type_annotation_of_a_variable_is_still_skipped(self):
+        code = (
+            "function a(x: number) {\n"
+            "  const handler: Handler = (v) => { use(v); };\n"
+            "  const table: Map<string, number> = new Map();\n"
+            "  return x ? handler : table;\n"
+            "}\n"
+        )
+        self.assertEqual([('handler', 2, 2, 1), ('a', 1, 5, 1)],
+                         self.summary(code))
