@@ -511,3 +511,162 @@ class Test_ES6_multiple_arrow_patterns(unittest.TestCase):
         functions = get_js_function_list(code)
         self.assertEqual(["validate"], [f.name for f in functions])
         self.assertGreater(functions[0].cyclomatic_complexity, 1)
+
+
+def function_summary(functions):
+    return [(f.name, f.start_line, f.end_line, f.cyclomatic_complexity)
+            for f in functions]
+
+
+class Test_ES6_parenthesized_expressions(unittest.TestCase):
+    """A parenthesized expression is not the parameter list of a function."""
+
+    def test_conditions_in_a_parenthesized_expression(self):
+        code = (
+            "function f(a, b) {\n"
+            "  const ok = (a && b) || a;\n"
+            "  return ok;\n"
+            "}\n"
+        )
+        self.assertEqual([('f', 1, 4, 3)],
+                         function_summary(get_js_function_list(code)))
+
+    def test_function_end_after_a_parenthesized_expression_with_calls(self):
+        code = (
+            "async function a(x) {\n"
+            "  const y = (await (await f(x)).json()).z;\n"
+            "  if (y) {\n"
+            "    return 1;\n"
+            "  }\n"
+            "  return 0;\n"
+            "}\n"
+            "function b() { return 1; }\n"
+        )
+        self.assertEqual([('a', 1, 7, 2), ('b', 8, 8, 1)],
+                         function_summary(get_js_function_list(code)))
+
+    def test_function_end_after_a_parenthesized_product(self):
+        code = (
+            "function m(x) {\n"
+            "  const total = (x.a + f(x.b)) * 2;\n"
+            "  return total;\n"
+            "}\n"
+            "function n(x) { return x; }\n"
+        )
+        self.assertEqual([('m', 1, 4, 1), ('n', 5, 5, 1)],
+                         function_summary(get_js_function_list(code)))
+
+    def test_immediately_invoked_arrow_function(self):
+        code = (
+            "const r = (() => {\n"
+            "  if (a) { return 1; }\n"
+            "  return 2;\n"
+            "})();\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual([('(anonymous)', 1, 4, 2), ('after', 5, 5, 1)],
+                         function_summary(get_js_function_list(code)))
+
+    def test_class_field_with_nested_calls(self):
+        code = (
+            "class K {\n"
+            "  x = f(g(1));\n"
+            "  m1() { return 1; }\n"
+            "  y = (a && b);\n"
+            "  m2() { return 2; }\n"
+            "}\n"
+        )
+        self.assertEqual([('m1', 3, 3, 1), ('m2', 5, 5, 1)],
+                         function_summary(get_js_function_list(code)))
+
+    def test_class_field_with_an_immediately_invoked_arrow_function(self):
+        code = (
+            "class K {\n"
+            "  y = (() => { if (a) { return 1; } return 2; })();\n"
+            "  m() { return 2; }\n"
+            "}\n"
+        )
+        self.assertEqual([('(anonymous)', 2, 2, 2), ('m', 3, 3, 1)],
+                         function_summary(get_js_function_list(code)))
+
+
+class Test_ES6_arrow_function_parameters(unittest.TestCase):
+
+    def parameter_counts(self, code):
+        return [(f.name, f.parameter_count) for f in get_js_function_list(code)]
+
+    def test_anonymous_arrow_function_as_an_argument(self):
+        code = "const r = list.map((x, i) => x + i);"
+        self.assertEqual([('(anonymous)', 2)], self.parameter_counts(code))
+
+    def test_anonymous_arrow_function_with_a_block(self):
+        code = "const r = list.filter((x) => { return x; });"
+        self.assertEqual([('(anonymous)', 1)], self.parameter_counts(code))
+
+    def test_anonymous_arrow_function_without_parameters(self):
+        code = "setTimeout(() => { done(); }, 10);"
+        self.assertEqual([('(anonymous)', 0)], self.parameter_counts(code))
+
+    def test_arrow_function_without_parentheses(self):
+        code = "const f = x => { return x; };"
+        self.assertEqual([('f', 1)], self.parameter_counts(code))
+
+    def test_anonymous_arrow_function_without_parentheses(self):
+        code = "const r = list.map(x => x * 2);"
+        self.assertEqual([('(anonymous)', 1)], self.parameter_counts(code))
+
+    def test_async_arrow_function_without_parentheses(self):
+        code = "const f = async x => { return x; };"
+        self.assertEqual([('f', 1)], self.parameter_counts(code))
+
+    def test_arrow_function_returning_an_arrow_function_is_one_function(self):
+        code = "const curried = (a) => (b) => a + b;"
+        self.assertEqual([('curried', 1)], self.parameter_counts(code))
+
+    def test_arrow_function_in_a_ternary(self):
+        code = "const f = strict ? (a, b) => a === b : null;"
+        self.assertEqual([('(anonymous)', 2)], self.parameter_counts(code))
+
+
+class Test_ES6_parameter_list(unittest.TestCase):
+
+    def test_destructured_object_is_one_parameter(self):
+        functions = get_js_function_list(
+            "function d(a = 1, { b, c } = {}, ...rest) { return a; }")
+        self.assertEqual(3, functions[0].parameter_count)
+
+    def test_destructured_array_is_one_parameter(self):
+        functions = get_js_function_list("function e([a, b], c) { return a; }")
+        self.assertEqual(2, functions[0].parameter_count)
+
+    def test_nested_destructuring_is_one_parameter(self):
+        functions = get_js_function_list(
+            "const extract = ({user: {name, address: {city}}}) => { return name; }")
+        self.assertEqual(1, functions[0].parameter_count)
+
+    def test_default_value_with_a_call(self):
+        code = (
+            "function c(a = g(1, 2), b) {\n"
+            "  return a;\n"
+            "}\n"
+            "function d() { return 1; }\n"
+        )
+        functions = get_js_function_list(code)
+        self.assertEqual([('c', 1, 3, 1), ('d', 4, 4, 1)],
+                         function_summary(functions))
+        self.assertEqual(2, functions[0].parameter_count)
+
+    def test_default_value_with_an_array(self):
+        functions = get_js_function_list("const k = (a, b = [1, 2]) => { return a; };")
+        self.assertEqual(2, functions[0].parameter_count)
+
+    def test_method_with_a_default_value_with_a_call(self):
+        code = (
+            "class K {\n"
+            "  m(a = g(1, 2), b) { return a; }\n"
+            "  n() { return 1; }\n"
+            "}\n"
+        )
+        functions = get_js_function_list(code)
+        self.assertEqual([('m', 2), ('n', 0)],
+                         [(f.name, f.parameter_count) for f in functions])

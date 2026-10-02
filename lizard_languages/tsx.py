@@ -8,7 +8,7 @@ Only overrides tokenization to handle JSX-specific syntax (<Component>, {express
 from .code_reader import CodeReader
 from .js_style_regex_expression import js_style_literal_tokens
 from .typescript import TypeScriptReader, TEMPLATE_LITERAL
-from .typescript import JSTokenizer, Tokenizer
+from .typescript import JSTokenizer, Tokenizer, mark_parentheses
 
 
 class TSXReader(TypeScriptReader):
@@ -19,6 +19,11 @@ class TSXReader(TypeScriptReader):
 
     @staticmethod
     def generate_tokens(source_code, addition='', token_class=None):
+        return mark_parentheses(
+            TSXReader._generate_tsx_tokens(source_code, addition, token_class))
+
+    @staticmethod
+    def _generate_tsx_tokens(source_code, addition, token_class):
         # Add support for TypeScript type annotations in JSX
         addition = addition + \
             r"|(?:<[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*>)" + \
