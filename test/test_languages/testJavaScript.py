@@ -1066,3 +1066,32 @@ class Test_js_keyword_as_the_name_of_a_member(unittest.TestCase):
     def test_catch_clause_is_still_a_condition(self):
         code = "function a() {\n  try { f(); } catch (e) { g(); }\n}\n"
         self.assertEqual(2, get_js_function_list(code)[0].cyclomatic_complexity)
+
+
+class Test_js_decisions_in_their_function(unittest.TestCase):
+
+    def ccn(self, code, filenames=("a.js", "a.ts", "a.tsx")):
+        return {filename: [(f.name, f.start_line, f.end_line,
+                            f.cyclomatic_complexity) for f in
+                           analyze_file.analyze_source_code(
+                               filename, code).function_list]
+                for filename in filenames}
+
+    def check(self, expected, code, filenames=("a.js", "a.ts", "a.tsx")):
+        for filename, functions in self.ccn(code, filenames).items():
+            self.assertEqual(expected, functions, filename)
+
+    def test_spread_of_a_call_in_an_object(self):
+        code = (
+            "function f(m, i, a) {\n"
+            "  return { ...g(i ? 1 : 2), ...h({ a: a ? 1 : 2 }), u: m || 0 }\n"
+            "}\n"
+            "function k(n) {\n"
+            "  return {\n"
+            "    ...g({\n"
+            "      a: n ? 1 : 2,\n"
+            "    }),\n"
+            "  }\n"
+            "}\n"
+        )
+        self.check([('f', 1, 3, 4), ('k', 4, 10, 2)], code)
