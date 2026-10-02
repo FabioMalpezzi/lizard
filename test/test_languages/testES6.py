@@ -682,6 +682,28 @@ class Test_ES6_arrow_function_ends_at_a_comma(unittest.TestCase):
             [(f.name, f.cyclomatic_complexity) for f in get_js_function_list(code)])
 
 
+class Test_ES6_arrow_function_after_a_member_access(unittest.TestCase):
+
+    def names_and_parameters(self, code):
+        return [(f.name, f.parameter_count) for f in get_js_function_list(code)]
+
+    def test_arrow_property_without_parameters(self):
+        code = "const o = {status: r.status, json: () => JSON.parse(text)};"
+        self.assertEqual([('json', 0)], self.names_and_parameters(code))
+
+    def test_arrow_property_with_parameters(self):
+        code = "const o = {status: r.status, add: (a, b) => a + b};"
+        self.assertEqual([('add', 2)], self.names_and_parameters(code))
+
+    def test_arrow_function_assigned_to_a_member(self):
+        code = "a.b = (x, y) => { return x; };"
+        self.assertEqual([('a.b', 2)], self.names_and_parameters(code))
+
+    def test_arrow_function_without_parentheses_after_a_property(self):
+        code = "const o = {status: r.status, id: x => x};"
+        self.assertEqual([('id', 1)], self.names_and_parameters(code))
+
+
 class Test_ES6_parameter_list(unittest.TestCase):
 
     def test_destructured_object_is_one_parameter(self):

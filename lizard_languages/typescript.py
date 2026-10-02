@@ -372,19 +372,24 @@ class TypeScriptStates(CodeStateMachine):
                     self._consume_generic_type_params()
                 return
             elif token == '(':
+                if getattr(token, 'arrow', None) and not self.started_function:
+                    # The parameters of an arrow function. It has the name
+                    # of its field or property, field = (...) => {} and
+                    # prop: (...) => {}, and none anywhere else in a value,
+                    # prop: a ? b : (...) => {}
+                    if not (self.last_tokens == '=' or (
+                            self._in_prop_value
+                            and self.last_tokens == self.function_name)):
+                        self.function_name = ''
+                    self._function(self.function_name)
+                    self.next(self._function, token)
+                    return
                 # Check if this is a method call (previous token was . or new)
                 if self._prev_token == '.' or self._prev_token == 'new':
                     # Method call inside object — use sub_state so
                     # the matching ')' doesn't escape the object reader.
                     self.sub_state(self.__class__(self.context))
                     self._prev_token = token
-                    return
-                if getattr(token, 'arrow', None) and self.last_tokens == ':' and (
-                        not self.started_function):
-                    # prop: a ? b : (...) => {}
-                    self.function_name = ''
-                    self._function(self.function_name)
-                    self.next(self._function, token)
                     return
                 # In property value (after ':'), identifier( is a function call
                 # unless it's the prop name itself: prop: (...) => {} is arrow fn
@@ -439,10 +444,10 @@ class TypeScriptStates(CodeStateMachine):
         elif token in ('else', 'do', 'try', 'final'):
             self.next(self._expecting_statement_or_block)
         elif token in ('=>',):
-            # "x => ..." has one parameter, read before the arrow
-            name = self.last_tokens
+            # "x => ..." has one parameter, the token before the arrow
+            name = self.last_token or ''
             self._arrow_parameter = name if (
-                name and (name[0].isalpha() or name[0] in '_$')) else None
+                name == self.last_tokens and _IDENTIFIER.match(name)) else None
             self._start_arrow_function()
             self._state = self._arrow_function
         elif token == '=':
