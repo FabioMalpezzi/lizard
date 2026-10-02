@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 1.24.0+senso.1
+
+Build of 1.24.0 kept in the fork FabioMalpezzi/lizard for Senso, until the
+fixes below are in an official release. It adds to 1.24.0 the upstream
+commits f0c07c0, 3f9270d (Python PEP 695) and 1575a44 (issue #497), and the
+fixes proposed upstream from the branches pr/javascript-typescript,
+pr/python-parameters, pr/python-floor-division, pr/python-one-line-functions
+and pr/python-nested-structures. Other languages are unchanged.
+
+### Bug Fixes
+- JavaScript/TypeScript/TSX: regular expression literals, template literals, arrow functions, type annotations, object literals and JSX text no longer lose the end of a function or count the wrong parameters and conditions
+- Python: parameter count with a comma inside a default value or a lambda
+- Python: `//` is the floor division operator, not a comment
+- Python: functions whose body is on the line of the `def` are reported
+- Python: nested structures (`-ENS`) are counted by indentation
+
 ## 1.24.0
 
 ### New Features
