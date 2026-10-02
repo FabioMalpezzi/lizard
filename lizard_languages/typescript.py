@@ -840,7 +840,8 @@ class TypeScriptStates(CodeStateMachine):
         enclosing = self.context.current_function
         ended.end_line = self._last_line
         counters = ['nloc', 'token_count']
-        if self._token in TypeScriptReader._control_flow_keywords:
+        if self._token in TypeScriptReader._control_flow_keywords or \
+                self._token in TypeScriptReader._case_keywords:
             counters.append('cyclomatic_complexity')
         for counter in counters:
             setattr(ended, counter, getattr(ended, counter) - 1)

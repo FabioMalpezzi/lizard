@@ -1095,3 +1095,17 @@ class Test_js_decisions_in_their_function(unittest.TestCase):
             "}\n"
         )
         self.check([('f', 1, 3, 4), ('k', 4, 10, 2)], code)
+
+    def test_case_after_an_arrow_function_without_braces(self):
+        code = (
+            "function m(key, cursor) {\n"
+            "  switch (true) {\n"
+            "    case key.left && key.ctrl:\n"
+            "      return () => cursor.prevWord()\n"
+            "    case key.right && key.ctrl:\n"
+            "      return () => cursor.nextWord()\n"
+            "  }\n"
+            "}\n"
+        )
+        self.check([('(anonymous)', 4, 4, 1), ('(anonymous)', 6, 6, 1),
+                    ('m', 1, 8, 5)], code)
