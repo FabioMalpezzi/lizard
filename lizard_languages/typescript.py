@@ -200,7 +200,7 @@ _CONTINUED_AFTER = frozenset((
 # of the line before.
 _CONTINUED_BY = frozenset((
     '?', ':', '&&', '||', '??', '|', '&', '^', '%', '==', '===', '!=', '!==',
-    '<=', '>=', 'instanceof', 'in'))
+    '<=', '>=', '+', '-', '/', 'instanceof', 'in'))
 
 # TypeScript type keywords that should not be counted as parameters
 _TS_TYPE_KEYWORDS = frozenset([

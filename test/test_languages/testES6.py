@@ -1027,6 +1027,16 @@ class Test_ES6_expression_on_many_lines(unittest.TestCase):
             [('(anonymous)', 2, 2, 1), ('counters', 1, 3, 2), ('after', 4, 4, 1)],
             function_summary(get_js_function_list(code)))
 
+    def test_arrow_function_body_with_lines_that_start_with_a_plus(self):
+        code = (
+            "const row = item => '<td>' + item.name\n"
+            "  + (item.on ? 'on' : 'off')\n"
+            "  + '</td>';\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual([('row', 1, 3, 2), ('after', 4, 4, 1)],
+                         function_summary(get_js_function_list(code)))
+
     def test_statements_without_semicolons_still_end_at_the_line(self):
         code = (
             "const inc = x => x + 1\n"
