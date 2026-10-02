@@ -841,6 +841,8 @@ class TypeScriptStates(CodeStateMachine):
     def _give_back_last_token(self, ended):
         enclosing = self.context.current_function
         ended.end_line = self._last_line
+        # The token is at its line in the function around
+        enclosing.end_line = self.context.current_line
         counters = ['nloc', 'token_count']
         if self._token in TypeScriptReader._control_flow_keywords or \
                 self._token in TypeScriptReader._case_keywords:

@@ -1206,3 +1206,22 @@ class Test_es6_arrow_function_in_a_branch_of_a_ternary(unittest.TestCase):
                 [(f.name, f.start_line, f.end_line) for f in
                  analyze_file.analyze_source_code(filename, code).function_list],
                 filename)
+
+
+class Test_es6_function_that_returns_an_arrow_function_without_braces(unittest.TestCase):
+
+    def test_the_outer_function_ends_at_its_brace(self):
+        code = (
+            "export function register(fn) {\n"
+            "  add(fn)\n"
+            "  return () => remove(fn)\n"
+            "}\n"
+            "function after() { return 1 }\n"
+        )
+        for filename in ("a.js", "a.ts", "a.tsx"):
+            self.assertEqual(
+                [('(anonymous)', 3, 3, 1), ('register', 1, 4, 4),
+                 ('after', 5, 5, 1)],
+                [(f.name, f.start_line, f.end_line, f.nloc) for f in
+                 analyze_file.analyze_source_code(filename, code).function_list],
+                filename)
