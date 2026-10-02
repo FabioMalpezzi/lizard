@@ -1080,3 +1080,17 @@ class Test_TSX_slash_and_quotes_in_the_text_of_a_tag(unittest.TestCase):
                      analyze_file.analyze_source_code(
                          filename, code).function_list],
                     text + " in " + filename)
+
+    def test_parenthesis_at_the_start_of_the_text_of_a_tag_with_attributes(self):
+        code = (
+            "function A(x) {\n"
+            "  if (x) {\n"
+            "    t = { label: <Text>Deny <Text bold={true}>(esc)</Text></Text> };\n"
+            "  }\n"
+            "}\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual([('A', 1, 5, 2), ('after', 6, 6, 1)],
+                         [(f.name, f.start_line, f.end_line,
+                           f.cyclomatic_complexity)
+                          for f in get_tsx_function_list(code)])
