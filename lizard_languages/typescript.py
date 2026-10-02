@@ -318,6 +318,21 @@ _CONTINUED_BY = frozenset((
 # Statements that start with a keyword the states read before the new line
 _STATEMENTS = frozenset(('if', 'switch', 'for', 'while', 'do', 'try'))
 
+# Keywords after which a name starts an expression
+_BEFORE_AN_EXPRESSION = frozenset((
+    'return', 'typeof', 'await', 'yield', 'case', 'in', 'of', 'new', 'delete',
+    'void', 'throw', 'else', 'do', 'export', 'default', 'const', 'let', 'var',
+    'instanceof'))
+
+
+def _ends_an_expression(token):
+    '''True when the token can be the last of an expression.'''
+    return bool(token) and (
+        token[-1] in ')]}"\'`' or (
+            (token[-1].isalnum() or token[-1] in '_$')
+            and token not in _BEFORE_AN_EXPRESSION))
+
+
 # Modifiers and declarations, read before the end of a statement at a new
 # line is
 _MODIFIERS = frozenset((
@@ -433,8 +448,9 @@ class TypeScriptStates(CodeStateMachine):
             # f<A, B>(x): what is up to the ">" is a type, not code
             self._consume_generic_type_params()
             return
-        if token in ('as', 'satisfies') and self.typed:
-            # x as T, x satisfies T
+        if token in ('as', 'satisfies') and self.typed and \
+                _ends_an_expression(self.last_token):
+            # x as T, x satisfies T, and not return as.map(f)
             self._consume_type_annotation()
             return
         if token == 'class' and self._prev_token != '.':
@@ -1000,16 +1016,29 @@ class TypeScriptTypeAnnotationStates(CodeStateMachine):
         self._to_close = []  # The brackets open in the type
         self._type_expected = True
         self._after_parentheses = False
+        # The parentheses open the parameters of a function type, (a: A) =>
+        # B, and not a type between parentheses, (() => void), or the
+        # argument of import('m'): True, False, or None while not known
+        self._parameters = None
+        self._inside = []  # Their first tokens
 
     def _state_global(self, token):
         if self._to_close:
+            if len(self._to_close) == 1 and self._parameters is None:
+                self._inside.append(token)
+                self._parameters = _function_type_parameters(self._inside)
             if token in self._CLOSING:
                 self._to_close.append(self._CLOSING[token])
             elif token == self._to_close[-1]:
                 self._to_close.pop()
-                self._after_parentheses = token == ')'
+                self._after_parentheses = token == ')' and (
+                    self._parameters is not False)
         elif token in self._CLOSING and (token != '{' or self._type_expected):
             self._to_close.append(self._CLOSING[token])
+            # The parentheses after import or a name are not parameters
+            self._parameters = None if (
+                token == '(' and self._type_expected) else False
+            self._inside = []
             self._type_expected = False
         elif token == '=>' and self._after_parentheses:
             # (a: A) => B, a function type: its return type follows
@@ -1023,3 +1052,20 @@ class TypeScriptTypeAnnotationStates(CodeStateMachine):
         else:
             self._after_parentheses = False
             self._type_expected = token in self._BEFORE_A_TYPE
+
+
+def _function_type_parameters(tokens):
+    '''
+    From the first tokens after the "(" of a type: True when it opens the
+    parameters of a function type, False when it opens a type between
+    parentheses, None when more tokens are needed. The rules are those of
+    the TypeScript parser.
+    '''
+    first = tokens[0]
+    if first in (')', '...', '[', '{'):
+        return True
+    if not (_IDENTIFIER.match(first) or first == 'this'):
+        return False
+    if len(tokens) == 1:
+        return None
+    return first.endswith('?') or tokens[1] in (':', ',', '?', '=', ')')

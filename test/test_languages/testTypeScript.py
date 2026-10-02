@@ -1853,3 +1853,53 @@ class Test_ts_label_of_a_loop(unittest.TestCase):
                 [('f', 1, 11, 6), ('after', 12, 12, 1)],
                 [(f.name, f.start_line, f.end_line, f.cyclomatic_complexity)
                  for f in functions], filename)
+
+
+class Test_ts_types_that_end_before_an_arrow(unittest.TestCase):
+
+    def summary(self, code):
+        return [(f.name, f.start_line, f.end_line)
+                for f in get_ts_function_list(code)]
+
+    def test_variable_named_as(self):
+        code = (
+            "function f(as) {\n"
+            "  return as.map((a, i) => i)\n"
+            "}\n"
+        )
+        self.assertEqual([('(anonymous)', 2, 2), ('f', 1, 3)],
+                         self.summary(code))
+
+    def test_return_type_with_typeof_import(self):
+        code = (
+            "const sel =\n"
+            "  (): typeof import('a.js') =>\n"
+            "    require('a.js')\n"
+            "\n"
+            "const x = 1\n"
+            "function g(x) { return x; }\n"
+        )
+        self.assertEqual([('sel', 2, 3), ('g', 6, 6)], self.summary(code))
+
+    def test_return_type_between_parentheses(self):
+        code = (
+            "class A {\n"
+            "  subscribe = (fn: () => void): (() => void) => {\n"
+            "    return () => {\n"
+            "      stop()\n"
+            "    }\n"
+            "  }\n"
+            "}\n"
+            "function g(x) { return x; }\n"
+        )
+        self.assertEqual([('(anonymous)', 3, 5), ('subscribe', 2, 6),
+                          ('g', 8, 8)], self.summary(code))
+
+    def test_return_type_that_is_a_function_type(self):
+        code = (
+            "const make = (): ((a: number) => void) => (a) => use(a)\n"
+            "const other = (): (a: number) => void => (a) => use(a)\n"
+            "function g(x) { return x; }\n"
+        )
+        self.assertEqual([('make', 1, 1), ('other', 2, 2), ('g', 3, 3)],
+                         self.summary(code))
