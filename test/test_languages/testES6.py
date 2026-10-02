@@ -649,6 +649,32 @@ class Test_ES6_arrow_function_lines(unittest.TestCase):
                          function_summary(get_js_function_list(code)))
 
 
+class Test_ES6_object_in_the_body_of_an_arrow_function(unittest.TestCase):
+
+    def test_object_literals_in_an_expression_body(self):
+        code = (
+            "function layout(vertical) {\n"
+            "  const box = f => vertical ? {x: f.a, y: f.b} : {x: f.b, y: f.a};\n"
+            "  return box;\n"
+            "}\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual(
+            [('box', 2, 2, 2), ('layout', 1, 4, 1), ('after', 5, 5, 1)],
+            function_summary(get_js_function_list(code)))
+
+    def test_block_body_is_still_a_body(self):
+        code = (
+            "const f = x => {\n"
+            "  if (x) { return {a: 1}; }\n"
+            "  return {a: 2};\n"
+            "};\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual([('f', 1, 4, 2), ('after', 5, 5, 1)],
+                         function_summary(get_js_function_list(code)))
+
+
 class Test_ES6_arrow_function_ends_at_a_comma(unittest.TestCase):
     """An arrow function without braces ends at the comma after its body."""
 
