@@ -670,3 +670,123 @@ class Test_ES6_parameter_list(unittest.TestCase):
         functions = get_js_function_list(code)
         self.assertEqual([('m', 2), ('n', 0)],
                          [(f.name, f.parameter_count) for f in functions])
+
+
+class Test_ES6_values_in_objects_and_arrays(unittest.TestCase):
+    """The value of a property or of a field is not a member declaration."""
+
+    def test_array_as_a_property_value(self):
+        code = (
+            "function a(bytes) {\n"
+            "  const signatures = {\n"
+            "    '.png': ['image/png', bytes.subarray(0, 8).equals(from([1, 2]))],\n"
+            "    '.jpg': ['image/jpeg', bytes.subarray(0, 3).equals(from([3, 4]))],\n"
+            "  };\n"
+            "  return signatures;\n"
+            "}\n"
+            "function b() { return 1; }\n"
+        )
+        self.assertEqual([('a', 1, 7, 1), ('b', 8, 8, 1)],
+                         function_summary(get_js_function_list(code)))
+
+    def test_array_of_objects_as_a_property_value(self):
+        code = (
+            "function a() {\n"
+            "  return { name: 'x', list: [{ id: 1, tags: ['a', 'b'] }, { id: 2 }] };\n"
+            "}\n"
+            "function b() { return 1; }\n"
+        )
+        self.assertEqual([('a', 1, 3, 1), ('b', 4, 4, 1)],
+                         function_summary(get_js_function_list(code)))
+
+    def test_less_than_in_a_property_value(self):
+        code = (
+            "function a(date) {\n"
+            "  return {\n"
+            "    date,\n"
+            "    recent: date ? now() - parse(date) < 30 : false,\n"
+            "  };\n"
+            "}\n"
+            "function b() { return 1; }\n"
+        )
+        self.assertEqual([('a', 1, 6, 2), ('b', 7, 7, 1)],
+                         function_summary(get_js_function_list(code)))
+
+    def test_array_as_a_class_field_value(self):
+        code = (
+            "class K {\n"
+            "  x = [f(1), g(2)];\n"
+            "  m() { return 1; }\n"
+            "}\n"
+        )
+        self.assertEqual([('m', 3, 3, 1)],
+                         function_summary(get_js_function_list(code)))
+
+    def test_less_than_in_a_class_field_value(self):
+        code = (
+            "class K {\n"
+            "  x = a < b;\n"
+            "  m1() { return 1; }\n"
+            "  m2() { return 2; }\n"
+            "}\n"
+        )
+        self.assertEqual([('m1', 3, 3, 1), ('m2', 4, 4, 1)],
+                         function_summary(get_js_function_list(code)))
+
+    def test_functions_in_an_array(self):
+        code = (
+            "const handlers = [\n"
+            "  function () { return 1; },\n"
+            "  (a) => { return a; },\n"
+            "];\n"
+            "function b() { return 1; }\n"
+        )
+        self.assertEqual(
+            [('(anonymous)', 2, 2, 1), ('(anonymous)', 3, 3, 1), ('b', 5, 5, 1)],
+            function_summary(get_js_function_list(code)))
+
+    def test_arrow_function_returning_an_array_on_many_lines(self):
+        code = (
+            "const f = x => [\n"
+            "  x,\n"
+            "  x + 1,\n"
+            "];\n"
+            "function b() { return 1; }\n"
+        )
+        self.assertEqual([('f', 1, 4, 1), ('b', 5, 5, 1)],
+                         function_summary(get_js_function_list(code)))
+
+    def test_optional_index_access(self):
+        code = (
+            "function a(s, list) {\n"
+            "  const first = find(s)?.[1];\n"
+            "  return [first, list?.[0]];\n"
+            "}\n"
+            "function b() { return 1; }\n"
+        )
+        self.assertEqual([('a', 1, 4), ('b', 5, 5)],
+                         [(f.name, f.start_line, f.end_line)
+                          for f in get_js_function_list(code)])
+
+    def test_square_bracket_without_its_pair(self):
+        code = (
+            "function a(c, r) {\n"
+            "  const s = new Set(r.flatMap(x => c ? [f(x), g(x)] : [f(x)]));\n"
+            "  return s;\n"
+            "}\n"
+            "function b() { return 1; }\n"
+        )
+        self.assertEqual([('a', 1, 4), ('b', 5, 5)],
+                         [(f.name, f.start_line, f.end_line)
+                          for f in get_js_function_list(code) if f.name != '(anonymous)'])
+
+    def test_computed_member_names_are_still_read(self):
+        code = (
+            "const o = {\n"
+            "  [key]: [1, 2],\n"
+            "  ['a' + 'b']() { return 1; },\n"
+            "  plain() { return 2; },\n"
+            "};\n"
+        )
+        self.assertEqual(['ab', 'plain'],
+                         [f.name for f in get_js_function_list(code)])
