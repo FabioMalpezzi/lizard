@@ -649,6 +649,39 @@ class Test_ES6_arrow_function_lines(unittest.TestCase):
                          function_summary(get_js_function_list(code)))
 
 
+class Test_ES6_arrow_function_ends_at_a_comma(unittest.TestCase):
+    """An arrow function without braces ends at the comma after its body."""
+
+    def names_and_parameters(self, code):
+        return [(f.name, f.parameter_count) for f in get_js_function_list(code)]
+
+    def test_arrow_functions_as_properties(self):
+        code = "const o = { a: (x) => x, b: () => 1, c() { return 1; } };"
+        self.assertEqual([('a', 1), ('b', 0), ('c', 0)],
+                         self.names_and_parameters(code))
+
+    def test_arrow_functions_as_arguments(self):
+        code = "sort(list, a => a.id, (b, c) => b + c);"
+        self.assertEqual([('(anonymous)', 1), ('(anonymous)', 2)],
+                         self.names_and_parameters(code))
+
+    def test_arrow_functions_in_an_array(self):
+        code = "const steps = [x => x + 1, y => y * 2];"
+        self.assertEqual([('(anonymous)', 1), ('(anonymous)', 1)],
+                         self.names_and_parameters(code))
+
+    def test_arrow_functions_in_one_declaration(self):
+        code = "const inc = x => x + 1, dec = x => x - 1;"
+        self.assertEqual([('inc', 1), ('dec', 1)],
+                         self.names_and_parameters(code))
+
+    def test_complexity_goes_to_its_own_arrow_function(self):
+        code = "const o = { a: x => x ? 1 : 2, b: y => y && 1 };"
+        self.assertEqual(
+            [('a', 2), ('b', 2)],
+            [(f.name, f.cyclomatic_complexity) for f in get_js_function_list(code)])
+
+
 class Test_ES6_parameter_list(unittest.TestCase):
 
     def test_destructured_object_is_one_parameter(self):

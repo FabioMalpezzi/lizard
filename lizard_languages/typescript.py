@@ -501,6 +501,9 @@ class TypeScriptStates(CodeStateMachine):
             self.sub_state(inside_brackets)
         elif token in ('}', ')', self._closed_by):
             self.statemachine_return()
+        elif token == ',':
+            # The body of an arrow function without braces ends here
+            self._pop_function_from_stack()
         elif self.context.newline or token == ';':
             if token == ';':
                 self._plain_colons = 0
