@@ -1008,12 +1008,13 @@ class Test_js_question_mark_operators(unittest.TestCase):
             self.assertEqual([('a', expected)], self.ccn(body, filename),
                              body + " in " + filename)
 
-    def test_nullish_coalescing_is_not_a_ternary(self):
-        self.check_ccn(1, "return x ?? y;")
-        self.check_ccn(1, "return x??y;")
+    def test_nullish_coalescing_is_one_condition(self):
+        # As in the C# reader: one condition, not the two of "? ?"
+        self.check_ccn(2, "return x ?? y;")
+        self.check_ccn(2, "return x??y;")
 
-    def test_nullish_assignment_is_not_a_ternary(self):
-        self.check_ccn(1, "x ??= y;")
+    def test_nullish_assignment_is_one_condition(self):
+        self.check_ccn(2, "x ??= y;")
 
     def test_optional_chaining_is_not_a_ternary(self):
         self.check_ccn(1, "return x?.y?.z;")
@@ -1024,7 +1025,7 @@ class Test_js_question_mark_operators(unittest.TestCase):
     def test_ternary_is_counted_with_and_without_spaces(self):
         self.check_ccn(2, "return x ? y : 0;")
         self.check_ccn(2, "return x?y:0;")
-        self.check_ccn(3, "return x ?? (y ? 1 : x?.z ? 2 : 3);")
+        self.check_ccn(4, "return x ?? (y ? 1 : x?.z ? 2 : 3);")
 
     def test_function_end_after_an_optional_call(self):
         code = (
