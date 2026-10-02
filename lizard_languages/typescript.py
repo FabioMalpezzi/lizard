@@ -572,6 +572,12 @@ class TypeScriptStates(CodeStateMachine):
             elif token in ('get', 'set'):
                 self._getter_setter_prefix = token
                 return
+            if token == '...':
+                # What is spread, ...g(x) or ...(x), is a value, not a member,
+                # also at the start of a line
+                self._in_prop_value = True
+                self.last_tokens = self._prev_token = token
+                return
             in_value = self._in_prop_value or self._in_field_value
             if token == '[' and not in_value:
                 self._collect_computed_name()
