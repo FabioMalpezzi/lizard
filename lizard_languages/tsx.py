@@ -38,21 +38,28 @@ class TSXReader(TypeScriptReader):
         js_tokenizer = TSXTokenizer()
 
         def read(source):
-            for token in js_style_literal_tokens(
-                    CodeReader.generate_tokens, source, addition, token_class):
-                prefix = next((p for p in ('//', '#') if token.startswith(p)),
-                              None)
-                if prefix and js_tokenizer.reads_text():
-                    # https://example.com or PR #{n} in the text of a tag:
-                    # "//" does not start a comment, "#" does not start a
-                    # line of the preprocessor
-                    for tok in js_tokenizer(prefix):
+            position = 0
+            while position is not None:
+                start, position = position, None
+                for token in js_style_literal_tokens(
+                        CodeReader.generate_tokens, source[start:], addition,
+                        token_class):
+                    prefix = '//' if token.startswith('//') else token[:1]
+                    if (prefix in _NOT_IN_TEXT and len(token) > len(prefix)
+                            and js_tokenizer.reads_text()):
+                        # In the text of a tag "//" does not start a
+                        # comment, "#" a line of the preprocessor, "/" a
+                        # regular expression or a quote a string: what
+                        # follows is read again as text.
+                        #   <p>Visit https://example.com today</p>
+                        #   <p>PR #{pr.number}, it's in /config</p>
+                        for tok in js_tokenizer(prefix):
+                            yield tok
+                        position = start + len(prefix)
+                        break
+                    for tok in js_tokenizer(token):
                         yield tok
-                    for tok in read(token[len(prefix):]):
-                        yield tok
-                    continue
-                for tok in js_tokenizer(token):
-                    yield tok
+                    start += len(token)
 
         for tok in read(source_code):
             if tok.startswith('`') and tok.endswith('`') and len(tok) > 1:
@@ -65,6 +72,10 @@ class TSXReader(TypeScriptReader):
         for tok in js_tokenizer.left_over():
             yield tok
 
+
+# The characters that start a token longer than themselves, which in the text
+# of a tag are text
+_NOT_IN_TEXT = frozenset(('//', '/', '#', "'", '"', '`'))
 
 # After one of these words a "<" opens a tag, as after an operator; after any
 # other word, a ")" or a "]" it is a comparison or opens type arguments.
