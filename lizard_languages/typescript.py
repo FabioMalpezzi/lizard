@@ -49,11 +49,23 @@ class MemberName(str):
     __hash__ = str.__hash__
 
 
+class TypeArguments(str):
+    '''
+    The "<" that opens the type arguments of a call, f<A, B>(x), or the type
+    parameters of a declaration, class C<T extends A> {}: what is up to its
+    ">" is a type, not code.
+    '''
+    def __new__(cls):
+        return super().__new__(cls, '<')
+
+
 # What cannot be in the return type of an arrow function, outside brackets
 _NOT_IN_A_RETURN_TYPE = frozenset((
-    ';', ',', '=', '{', '}', '?', ':', '`', 'return', 'const', 'let', 'var',
+    ';', ',', '=', '?', ':', '`', 'return', 'const', 'let', 'var',
     'if', 'for', 'while', 'throw', 'function', 'class', 'await', 'new',
     'yield', 'case', 'default'))
+_OPENING = frozenset(('(', '[', '{', '<'))
+_CLOSING = frozenset((')', ']', '}', '>'))
 
 
 def _arrow_follows(tokens):
@@ -70,15 +82,39 @@ def _arrow_follows(tokens):
     for token in tokens:
         if token == '=>' and not depth:
             return True
-        if token in ('(', '[', '<'):
+        if token in _OPENING:
             depth += 1
-        elif token in (')', ']', '>'):
+        elif token in _CLOSING:
             depth -= 1
             if depth < 0:
                 break
         elif not depth and token in _NOT_IN_A_RETURN_TYPE:
             break
     return False
+
+
+def _type_arguments_end(tokens, start):
+    '''
+    The index of the ">" that closes the type arguments opened by the "<" at
+    start, when the "(" of a call or what can follow the name of a class
+    comes after it; None when the "<" is a comparison.
+    '''
+    depth = 0
+    for index in range(start, min(start + 80, len(tokens))):
+        token = tokens[index]
+        if token in _OPENING:
+            depth += 1
+        elif token in _CLOSING:
+            depth -= 1
+            if not depth:
+                following = next(
+                    (t for t in tokens[index + 1:index + 6]
+                     if not t.isspace()), '')
+                return index if token == '>' and following in (
+                    '(', '{', 'extends', 'implements') else None
+        elif token in (';', '&&', '||', '===', '!==', '==', '!='):
+            break
+    return None
 
 
 def mark_parentheses(tokens):
@@ -91,6 +127,7 @@ def mark_parentheses(tokens):
     tokens = list(tokens)
     opened = []
     previous = ''  # The last token that is not white space or a comment
+    in_type_until = -1
     for index, token in enumerate(tokens):
         if previous in ('.', '?.') and token in (
                 'if', 'for', 'while', 'catch', 'case'):
@@ -100,8 +137,16 @@ def mark_parentheses(tokens):
         if token == '(':
             opened.append(index)
         elif token == ')' and opened:
+            # In type arguments "(a: A) => B" is a function type
             tokens[opened.pop()] = Parenthesis(
-                _arrow_follows(tokens[index + 1:index + 80]))
+                index > in_type_until
+                and _arrow_follows(tokens[index + 1:index + 80]))
+        elif token == '<' and index and index > in_type_until and (
+                tokens[index - 1][-1:].isalnum() or tokens[index - 1] in '_$'):
+            end = _type_arguments_end(tokens, index)
+            if end:
+                tokens[index] = TypeArguments()
+                in_type_until = end
     return tokens
 
 
@@ -266,6 +311,8 @@ _TS_TYPE_KEYWORDS = frozenset([
 
 
 class TypeScriptStates(CodeStateMachine):
+    typed = True  # A colon can be followed by a type
+
     def __init__(self, context):
         super().__init__(context)
         self.last_tokens = ''
@@ -290,6 +337,8 @@ class TypeScriptStates(CodeStateMachine):
         self._after_label = False  # The last colon was the one of a case label
         self._token = None  # The token being read
         self._read_again = None  # The token that ended a type annotation
+        self.in_class = False  # In a class body "name: Type" is not a value
+        self._class_seen = False  # The next "{" opens a class body
         self._last_line = 0  # The line of the token before it
 
     def __call__(self, token, reader=None):
@@ -354,11 +403,21 @@ class TypeScriptStates(CodeStateMachine):
                 self._prev_token = token
             return
 
+        if isinstance(token, TypeArguments):
+            # f<A, B>(x): what is up to the ">" is a type, not code
+            self._consume_generic_type_params()
+            return
+        if token in ('as', 'satisfies') and self.typed:
+            # x as T, x satisfies T
+            self._consume_type_annotation()
+            return
+        if token == 'class' and self._prev_token != '.':
+            self._class_seen = True
+
         # Skip type alias declarations: type Name = { ... }
         # These contain arrow signatures that are not runtime functions.
         if token == 'type' and not self.as_object:
-            phase = [0]        # 0=expect name, 1=expect =, 2=after =
-            brace_count = [0]
+            phase = [0]        # 0=expect name, 1=expect =, 3=in <...>
             generic_depth = [0]
 
             def handle_type_alias(t):
@@ -375,18 +434,12 @@ class TypeScriptStates(CodeStateMachine):
                         generic_depth[0] = 1
                         phase[0] = 3
                     elif t == '=':
-                        phase[0] = 2
+                        # The type is read up to its end, on any number
+                        # of lines
+                        self.next(self._state_global)
+                        self._consume_type_annotation()
                     elif t == ';':
                         self.next(self._state_global)
-                        return True
-                elif phase[0] == 2:
-                    if t == '{':
-                        brace_count[0] = 1
-                        phase[0] = 4
-                    elif t == ';' or self.context.newline:
-                        self.next(self._state_global)
-                        if t != ';':
-                            self._state_global(t)
                         return True
                 elif phase[0] == 3:
                     if t == '<':
@@ -395,14 +448,6 @@ class TypeScriptStates(CodeStateMachine):
                         generic_depth[0] -= 1
                         if generic_depth[0] == 0:
                             phase[0] = 1
-                elif phase[0] == 4:
-                    if t == '{':
-                        brace_count[0] += 1
-                    elif t == '}':
-                        brace_count[0] -= 1
-                        if brace_count[0] == 0:
-                            self.next(self._state_global)
-                            return True
                 return False
 
             self.next(handle_type_alias)
@@ -411,11 +456,16 @@ class TypeScriptStates(CodeStateMachine):
         # Skip interface declarations — method signatures are not runtime functions
         if token == 'interface':
             brace_count = 0
+            angle_count = 0  # In the type parameters, before the body
             interface_started = False
 
             def skip_interface(t):
-                nonlocal brace_count, interface_started
-                if t == '{':
+                nonlocal brace_count, angle_count, interface_started
+                if not interface_started and t in ('<', '>'):
+                    angle_count += 1 if t == '<' else -1
+                elif angle_count > 0:
+                    pass
+                elif t == '{':
                     interface_started = True
                     brace_count += 1
                 elif t == '}' and interface_started:
@@ -465,6 +515,10 @@ class TypeScriptStates(CodeStateMachine):
             in_value = self._in_prop_value or self._in_field_value
             if token == '[' and not in_value:
                 self._collect_computed_name()
+                return
+            if token == ':' and self.in_class and self.typed:
+                # field: Type
+                self._consume_type_annotation()
                 return
             if token == ':':
                 # Only set function_name for valid identifiers
@@ -627,7 +681,7 @@ class TypeScriptStates(CodeStateMachine):
                 token in _CONTINUED_BY or self.last_token in _CONTINUED_AFTER)):
             self._end_of_statement(token)
 
-        if not self.as_object:
+        if not self.as_object and self.typed:
             if token == ':':
                 self._consume_type_annotation()
                 self._prev_token = token
@@ -643,6 +697,7 @@ class TypeScriptStates(CodeStateMachine):
     def _end_of_statement(self, token):
         if token == ';':
             self._plain_colons = []
+            self._class_seen = False
         self.function_name = ''
         self._pop_function_from_stack()
         # Reset modifiers on newline/semicolon
@@ -659,6 +714,7 @@ class TypeScriptStates(CodeStateMachine):
 
         object_reader = self.__class__(self.context)
         object_reader.as_object = True
+        object_reader.in_class, self._class_seen = self._class_seen, False
         # Pass along the modifier flags
         object_reader._static_seen = self._static_seen
         object_reader._async_seen = self._async_seen
@@ -897,37 +953,47 @@ class TypeScriptStates(CodeStateMachine):
 
 
 class TypeScriptTypeAnnotationStates(CodeStateMachine):
+    '''
+    Reads a type, as it comes after a colon, up to the token after it, which
+    is kept in saved_token for the reader of the code. A type is one piece
+    for the states of the code: its brackets are not theirs, and a function
+    type, (a: A) => B, is not a function.
+    '''
+
+    _CLOSING = {'(': ')', '[': ']', '{': '}', '<': '>'}
+    # A type must follow these tokens: a "{" after them opens an object type
+    # and not the body of a function, and a new line goes on with the type.
+    _BEFORE_A_TYPE = frozenset((
+        '|', '&', '.', '?', ':', 'is', 'as', 'satisfies', 'keyof', 'typeof',
+        'readonly', 'extends', 'asserts', 'infer', 'unique', 'new'))
+    _AFTER_THE_TYPE = frozenset(('{', '=', ';', ')', ',', ']', '}', '=>'))
+
     def __init__(self, context):
         super().__init__(context)
         self.saved_token = None
+        self._to_close = []  # The brackets open in the type
+        self._type_expected = True
+        self._after_parentheses = False
 
     def _state_global(self, token):
-        if token == '{':
-            self.next(self._inline_type_annotation, token)
+        if self._to_close:
+            if token in self._CLOSING:
+                self._to_close.append(self._CLOSING[token])
+            elif token == self._to_close[-1]:
+                self._to_close.pop()
+                self._after_parentheses = token == ')'
+        elif token in self._CLOSING and (token != '{' or self._type_expected):
+            self._to_close.append(self._CLOSING[token])
+            self._type_expected = False
+        elif token == '=>' and self._after_parentheses:
+            # (a: A) => B, a function type: its return type follows
+            self._after_parentheses = False
+            self._type_expected = True
+        elif token in self._AFTER_THE_TYPE or (
+                self.context.newline and not self._type_expected
+                and token not in ('|', '&')):
+            self.saved_token = token
+            self.statemachine_return()
         else:
-            self.next(self._state_simple_type, token)
-
-    def _state_simple_type(self, token):
-        if token == '<':
-            self.next(self._state_generic_type, token)
-        elif token in '{=;)':
-            self.saved_token = token
-            self.statemachine_return()
-        elif token == '(':
-            self.next(self._function_type_annotation, token)
-        elif token == '=>':
-            # Handle arrow function after type annotation
-            self.saved_token = token
-            self.statemachine_return()
-
-    @CodeStateMachine.read_inside_brackets_then("{}")
-    def _inline_type_annotation(self, _):
-        self.statemachine_return()
-
-    @CodeStateMachine.read_inside_brackets_then("<>")
-    def _state_generic_type(self, token):
-        self.statemachine_return()
-
-    @CodeStateMachine.read_inside_brackets_then("()")
-    def _function_type_annotation(self, _):
-        self.statemachine_return()
+            self._after_parentheses = False
+            self._type_expected = token in self._BEFORE_A_TYPE
