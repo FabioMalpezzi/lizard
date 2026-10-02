@@ -1109,3 +1109,16 @@ class Test_js_decisions_in_their_function(unittest.TestCase):
         )
         self.check([('(anonymous)', 4, 4, 1), ('(anonymous)', 6, 6, 1),
                     ('m', 1, 8, 5)], code)
+
+    def test_line_comment_ending_with_a_backslash(self):
+        code = (
+            "function b(code) {\n"
+            "  return (\n"
+            "    code === 47 || // /\n"
+            "    code === 92 || // \\\n"
+            "    code === 45 || // -\n"
+            "    code === 32\n"
+            "  )\n"
+            "}\n"
+        )
+        self.check([('b', 1, 8, 4)], code)
