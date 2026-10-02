@@ -192,6 +192,8 @@ class TypeScriptStates(CodeStateMachine):
         self._async_seen = False  # Track if 'async' was seen
         self._prev_token = ''  # Track previous token to detect method calls
         self._in_prop_value = False  # Track if inside property value (after ':')
+        self._in_field_value = False  # Track if inside field value (after '=')
+        self._closed_by = None  # ']' when reading between square brackets
         self._in_abstract_context = False  # Track abstract method declarations
         self._nesting_in_dec = 0  # Brackets open in a parameter list
         self._arrow_parameter = None  # The parameter of "x => ..."
@@ -334,7 +336,8 @@ class TypeScriptStates(CodeStateMachine):
                 self.last_tokens = f"{self._getter_setter_prefix} {token}"
                 self._getter_setter_prefix = None
                 return
-            if token == '[':
+            in_value = self._in_prop_value or self._in_field_value
+            if token == '[' and not in_value:
                 self._collect_computed_name()
                 return
             if token == ':':
@@ -344,8 +347,8 @@ class TypeScriptStates(CodeStateMachine):
                     self.function_name = name
                 self._in_prop_value = True
                 return
-            elif token == '<' or (
-                    token.startswith('<') and token.endswith('>') and len(token) > 1):
+            elif not in_value and (token == '<' or (
+                    token.startswith('<') and token.endswith('>') and len(token) > 1)):
                 # Generic type params on method: sortByKey<T>(...) {
                 # Handles both multi-token <T, U> and single-token <T> from TSX tokenizer.
                 if token == '<':
@@ -429,6 +432,7 @@ class TypeScriptStates(CodeStateMachine):
             name = self.last_tokens
             if name and (name[0].isalpha() or name[0] in ('_', '$', '#')):
                 self.function_name = name
+            self._in_field_value = self.as_object
         elif token == "(":
             arrow = getattr(token, 'arrow', None)
             if arrow and not self.started_function:
@@ -471,7 +475,13 @@ class TypeScriptStates(CodeStateMachine):
                     self._pop_function_from_stack)
             else:
                 self.read_object()
-        elif token in ('}', ')'):
+        elif token == '[':
+            # An array, an index or a pattern: read up to its own ']', so
+            # that the functions and the objects inside it are found.
+            inside_brackets = self.__class__(self.context)
+            inside_brackets._closed_by = ']'
+            self.sub_state(inside_brackets)
+        elif token in ('}', ')', self._closed_by):
             self.statemachine_return()
         elif self.context.newline or token == ';':
             if token == ';':
@@ -483,6 +493,7 @@ class TypeScriptStates(CodeStateMachine):
             self._async_seen = False
             self._in_abstract_context = False
             self._in_prop_value = False
+            self._in_field_value = False
             self._prev_token = ''
 
         if not self.as_object:
@@ -492,6 +503,7 @@ class TypeScriptStates(CodeStateMachine):
                 return
         if self.as_object and token == ',':
             self._in_prop_value = False
+            self._in_field_value = False
         self.last_tokens = token
         # Don't overwrite _prev_token if it's 'new' or '.' (preserve for next token)
         if self._prev_token not in ('new', '.'):
@@ -545,6 +557,7 @@ class TypeScriptStates(CodeStateMachine):
             self.context.end_of_function()
         self.started_function = None
         self._in_prop_value = False
+        self._in_field_value = False
 
     def _arrow_function(self, token):
         if not self.started_function:
@@ -588,6 +601,10 @@ class TypeScriptStates(CodeStateMachine):
             self._dec(token)
 
     def _field(self, token):
+        if token == '[':
+            # obj?.[index]
+            self.next(self._state_global, token)
+            return
         self.last_tokens += token
         self._state = self._state_global
 
