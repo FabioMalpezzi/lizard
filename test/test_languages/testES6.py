@@ -790,3 +790,43 @@ class Test_ES6_values_in_objects_and_arrays(unittest.TestCase):
         )
         self.assertEqual(['ab', 'plain'],
                          [f.name for f in get_js_function_list(code)])
+
+
+class Test_ES6_members_named_get_or_set(unittest.TestCase):
+    """get and set start an accessor only before its name."""
+
+    def test_methods_named_get_and_set(self):
+        code = (
+            "class A {\n"
+            "  get(key) { return this.map[key]; }\n"
+            "  set(key, value) { this.map[key] = value; }\n"
+            "  other() { return 2; }\n"
+            "  get size() { return 1; }\n"
+            "}\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual(
+            [('get', 1), ('set', 2), ('other', 0), ('get size', 0), ('after', 0)],
+            [(f.name, f.parameter_count) for f in get_js_function_list(code)])
+
+    def test_shorthand_properties_named_get_and_set(self):
+        code = (
+            "function f(base, get, set) {\n"
+            "  return { base, get, set };\n"
+            "}\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual([('f', 1, 3, 1), ('after', 4, 4, 1)],
+                         function_summary(get_js_function_list(code)))
+
+    def test_properties_named_get_and_set(self):
+        code = (
+            "function g(set) {\n"
+            "  const o = { get: () => { return 1; }, set };\n"
+            "  return o;\n"
+            "}\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual(
+            [('get', 2, 2, 1), ('g', 1, 4, 1), ('after', 5, 5, 1)],
+            function_summary(get_js_function_list(code)))
