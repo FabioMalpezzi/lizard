@@ -192,6 +192,9 @@ class TypeScriptReader(CodeReader, CCppCommentsMixin):
 # A name, also "_", "_unused" and "$element", with the "?" of an optional one
 _IDENTIFIER = re.compile(r"(?:[^\W\d]|\$)[\w$]*\??$")
 
+# Modifiers, read before the end of a statement at a new line is
+_MODIFIERS = frozenset(('declare', 'abstract', 'static', 'async', 'get', 'set'))
+
 # TypeScript type keywords that should not be counted as parameters
 _TS_TYPE_KEYWORDS = frozenset([
     'string', 'number', 'boolean', 'void', 'any',
@@ -228,6 +231,12 @@ class TypeScriptStates(CodeStateMachine):
             self._pop_function_from_stack()
 
     def _state_global(self, token):
+        if (self.context.newline and token in _MODIFIERS
+                and self.last_token not in ('=', '=>', ':', '?')):
+            # A modifier at the start of a line starts a new member or
+            # statement, also after a class field without a semicolon,
+            # count = 0 and handler = () => 1.
+            self._end_of_statement(token)
         if token == 'declare':
             self._ts_declare = True
             return
@@ -525,17 +534,7 @@ class TypeScriptStates(CodeStateMachine):
             # The body of an arrow function without braces ends here
             self._pop_function_from_stack()
         elif self.context.newline or token == ';':
-            if token == ';':
-                self._plain_colons = []
-            self.function_name = ''
-            self._pop_function_from_stack()
-            # Reset modifiers on newline/semicolon
-            self._static_seen = False
-            self._async_seen = False
-            self._in_abstract_context = False
-            self._in_prop_value = False
-            self._in_field_value = False
-            self._prev_token = ''
+            self._end_of_statement(token)
 
         if not self.as_object:
             if token == ':':
@@ -549,6 +548,19 @@ class TypeScriptStates(CodeStateMachine):
         # Don't overwrite _prev_token if it's 'new' or '.' (preserve for next token)
         if self._prev_token not in ('new', '.'):
             self._prev_token = token
+
+    def _end_of_statement(self, token):
+        if token == ';':
+            self._plain_colons = []
+        self.function_name = ''
+        self._pop_function_from_stack()
+        # Reset modifiers on newline/semicolon
+        self._static_seen = False
+        self._async_seen = False
+        self._in_abstract_context = False
+        self._in_prop_value = False
+        self._in_field_value = False
+        self._prev_token = ''
 
     def read_object(self):
         def callback():
