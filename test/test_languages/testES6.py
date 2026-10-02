@@ -628,6 +628,27 @@ class Test_ES6_arrow_function_parameters(unittest.TestCase):
         self.assertEqual([('(anonymous)', 2)], self.parameter_counts(code))
 
 
+class Test_ES6_arrow_function_lines(unittest.TestCase):
+
+    def test_arrow_function_with_its_body_on_the_next_line(self):
+        code = (
+            "const counters = event =>\n"
+            "  list.filter(key => event[key]).join(' ');\n"
+            "function after() { return 1; }\n"
+        )
+        self.assertEqual(
+            [('counters', 1, 2, 1), ('(anonymous)', 2, 2, 1), ('after', 3, 3, 1)],
+            function_summary(get_js_function_list(code)))
+
+    def test_anonymous_arrow_function_with_its_body_on_the_next_line(self):
+        code = (
+            "const rows = list.map(item =>\n"
+            "  item.name + item.value);\n"
+        )
+        self.assertEqual([('(anonymous)', 1, 2, 1)],
+                         function_summary(get_js_function_list(code)))
+
+
 class Test_ES6_parameter_list(unittest.TestCase):
 
     def test_destructured_object_is_one_parameter(self):
