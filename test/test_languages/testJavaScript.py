@@ -968,6 +968,25 @@ class Test_js_function_end_after_regular_expressions(unittest.TestCase):
                          [(f.name, f.start_line, f.end_line, f.cyclomatic_complexity)
                           for f in functions])
 
+    def test_regex_with_a_quote_in_a_template_expression(self):
+        code = (
+            "const quote = p => (/^[a-z]+$/.test(p) ? p : `'${p.replace(/'/g, `'\\\\''`)}'`);\n"
+            "function check() { return 1; }\n"
+            "function after() { return 2; }\n"
+        )
+        functions = get_js_function_list(code)
+        self.assertEqual([('quote', 1, 1), ('check', 2, 2), ('after', 3, 3)],
+                         [(f.name, f.start_line, f.end_line) for f in functions])
+
+    def test_regex_with_a_brace_or_a_backtick_in_a_template_expression(self):
+        code = (
+            "const strip = p => `${p.replace(/}/g, '')} ${p.split(/`/)[0]} ${p.replace( /\"/, '')}`;\n"
+            "function check() { return 1; }\n"
+        )
+        functions = get_js_function_list(code)
+        self.assertEqual([('strip', 1, 1), ('check', 2, 2)],
+                         [(f.name, f.start_line, f.end_line) for f in functions])
+
     def test_operators_in_a_regex_are_not_conditions(self):
         code = (
             "function a(s) {\n"
