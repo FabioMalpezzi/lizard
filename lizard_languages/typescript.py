@@ -69,6 +69,26 @@ class TypeScriptReader(CodeReader, CCppCommentsMixin):
         super().__init__(context)
         self.parallel_states = [TypeScriptStates(context)]
 
+    def __call__(self, tokens, reader):
+        return super().__call__(self._outside_template_literals(tokens), reader)
+
+    @staticmethod
+    def _outside_template_literals(tokens):
+        '''
+        The states read a template literal as its opening backtick alone.
+        The tokens of a ${} are for the counters: a state that is reading a
+        parameter list or a type would take the brackets among them for its
+        own.
+        '''
+        inside = False
+        for token in tokens:
+            if token == '`':
+                inside = not inside
+                if inside:
+                    yield token
+            elif not inside:
+                yield token
+
     @staticmethod
     def generate_tokens(source_code, addition='', token_class=None):
         # Private method (#), dollar ($), optional chaining (?), template literals
@@ -97,7 +117,7 @@ class TypeScriptReader(CodeReader, CCppCommentsMixin):
         '''
         Yield the backtick that opens the literal, its text between
         backticks, every ${} with the tokens of its code, and the backtick
-        that closes it. The states skip all that is between the two
+        that closes it. The states do not read what is between the two
         backticks, so a literal nested in a ${} has none of its own.
         '''
         quote = token[0]
@@ -384,8 +404,6 @@ class TypeScriptStates(CodeStateMachine):
             self._in_prop_value = False
             self._prev_token = ''
 
-        if token == '`':
-            self.next(self._state_template_literal)
         if not self.as_object:
             if token == ':':
                 self._consume_type_annotation()
@@ -536,10 +554,6 @@ class TypeScriptStates(CodeStateMachine):
                 self.context.end_of_function()
             self.started_function = None
         self.next(self._state_global, token)
-
-    def _state_template_literal(self, token):
-        if token == '`':
-            self.next(self._state_global)
 
     def _collect_computed_name(self):
         # Collect tokens between [ and ]
