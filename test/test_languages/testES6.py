@@ -1000,3 +1000,63 @@ class Test_ES6_blocks_of_statements(unittest.TestCase):
             "function after() { return 1; }\n"
         )
         self.assertEqual([('b', 1, 9), ('after', 10, 10)], self.names(code))
+
+
+class Test_es6_class_field_without_a_semicolon(unittest.TestCase):
+
+    def summary(self, code, filename):
+        return [(f.name, f.start_line, f.end_line) for f in
+                analyze_file.analyze_source_code(filename, code).function_list]
+
+    def check(self, code, expected):
+        for filename in ("a.js", "a.ts", "a.tsx"):
+            self.assertEqual(expected, self.summary(code, filename), filename)
+
+    def test_field_then_a_method_with_a_modifier(self):
+        for modifier, name in (("async ", "load"), ("static ", "load"),
+                               ("get ", "get load"), ("set ", "set load"),
+                               ("*", "load")):
+            code = (
+                "class A {\n"
+                "  count = 0\n"
+                "  " + modifier + "load(v) {\n"
+                "    return 1;\n"
+                "  }\n"
+                "  two() {\n"
+                "    return 2;\n"
+                "  }\n"
+                "}\n"
+            )
+            self.check(code, [(name, 3, 5), ('two', 6, 8)])
+
+    def test_arrow_function_field_then_an_async_method(self):
+        code = (
+            "class A {\n"
+            "  handler = () => 1\n"
+            "  async load() {\n"
+            "    return 1;\n"
+            "  }\n"
+            "  two() {\n"
+            "    return 2;\n"
+            "  }\n"
+            "}\n"
+            "function after(a) { return a; }\n"
+        )
+        for filename in ("a.js", "a.ts", "a.tsx"):
+            self.assertEqual(
+                [('handler', 2), ('load', 3), ('two', 6), ('after', 10)],
+                [(name, start) for name, start, _ in
+                 self.summary(code, filename)], filename)
+
+    def test_async_arrow_function_on_the_line_after_its_name(self):
+        code = (
+            "const handler =\n"
+            "  async () => {\n"
+            "    return 1;\n"
+            "  };\n"
+            "const obj = {\n"
+            "  run:\n"
+            "    async (x) => { return x; },\n"
+            "};\n"
+        )
+        self.check(code, [('handler', 2, 4), ('run', 7, 7)])
