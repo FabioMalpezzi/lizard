@@ -30,6 +30,7 @@ class GoReader(CodeReader, CCppCommentsMixin):
         addition += r"|<-"  # The receive operator is one token
         # Go has no "<>" brackets: shifts and bit clear are one token too
         addition += r"|<<=|>>=|&\^=|<<|>>|&\^"
+        addition += r"|\*=|/=|%="
         pattern = compiled_token_pattern(addition)
 
         for match in pattern.finditer(source_code):
