@@ -2,7 +2,7 @@
 Language parser for Rust lang
 '''
 
-from .code_reader import CodeReader
+from .code_reader import CodeReader, CodeStateMachine
 from .clike import CCppCommentsMixin
 from .golike import GoLikeStates
 
@@ -22,7 +22,8 @@ class RustReader(CodeReader, CCppCommentsMixin):
 
     def __init__(self, context):
         super().__init__(context)
-        self.parallel_states = [RustStates(context)]
+        self.parallel_states = [RustStates(context),
+                                RustClosureStates(context)]
 
     @staticmethod
     def generate_tokens(source_code, addition='', token_class=None):
@@ -68,3 +69,21 @@ class RustStates(GoLikeStates):  # pylint: disable=R0903
 
     def _end_match(self):
         self.next(self._state_global)
+
+
+class RustClosureStates(CodeStateMachine):  # pylint: disable=R0903
+    '''"||" is the logical operator after an operand, and the empty
+    parameter list of a closure anywhere else: "run(|| 0)", "move || 1".'''
+
+    _keywords_before_closure = ('move', 'return', 'in', 'async', 'static',
+                                'break', 'else')
+
+    def _state_global(self, token):
+        if token == '||' and not self._after_operand():
+            self.context.add_condition(-1)
+
+    def _after_operand(self):
+        last = self.last_token
+        if last is None or last in self._keywords_before_closure:
+            return False
+        return last[-1].isalnum() or last[-1] in '_)]}?"\''
