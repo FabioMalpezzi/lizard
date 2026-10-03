@@ -223,13 +223,15 @@ class _HeadUpToBrace(object):  # pylint: disable=R0903
     """Finds the brace of the body after the head of a Go structure.
 
     The braces of a composite literal are not the body: the ones inside
-    parentheses, after "struct" or "interface", after the type that
+    parentheses or square brackets ("m[key{a, b}]"), after "struct" or
+    "interface", after the type that
     follows a "]" ("[]int{1, 2}", "map[string]pkg.T{}"), and the values
     after an anonymous struct type ("[]struct{ a int }{{1}, {2}}").
     """
 
     def __init__(self):
         self._parentheses = 0
+        self._squares = 0
         self._braces = 0
         self._last_token = None
         self._type_after_bracket = 0   # 1 after "]", 2 in the type name
@@ -237,7 +239,8 @@ class _HeadUpToBrace(object):  # pylint: disable=R0903
         self._after_struct_type = False
 
     def is_outside_brackets(self):
-        return self._parentheses == 0 and self._braces == 0
+        return (self._parentheses == 0 and self._squares == 0 and
+                self._braces == 0)
 
     def ends_with(self, token):
         last_token, self._last_token = self._last_token, token
@@ -249,6 +252,8 @@ class _HeadUpToBrace(object):  # pylint: disable=R0903
         if token == '(':
             self._parentheses = 1
             self._type_after_bracket = 0
+        elif token == '[':
+            self._squares = 1
         elif token == '{':
             self._closing_a_type = last_token in ('struct', 'interface')
             if not (self._closing_a_type or after_struct_type or
@@ -262,7 +267,10 @@ class _HeadUpToBrace(object):  # pylint: disable=R0903
 
     def _inside_brackets(self, token):
         self._parentheses += {'(': 1, ')': -1}.get(token, 0)
+        self._squares += {'[': 1, ']': -1}.get(token, 0)
         self._braces += {'{': 1, '}': -1}.get(token, 0)
+        if token == ']' and self.is_outside_brackets():
+            self._type_after_bracket = 1
         if token == '}' and self.is_outside_brackets():
             self._after_struct_type = self._closing_a_type
 
