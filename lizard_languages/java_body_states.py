@@ -49,16 +49,40 @@ class JavaFunctionBodyStates(JavaStates):
 
 
 class JavaClassBodyStates(JavaStates):
-    def __init__(self, class_name, is_record, context):
+    def __init__(self, class_name, is_record, context, is_enum=False):
         super(JavaClassBodyStates, self).__init__(context)
         self.class_name = class_name
         self.is_record = is_record
+        # The body of an enum starts with its constants, up to the first ';'.
+        self._in_enum_constants = is_enum
+        self._enum_constant = None
         self._after_static_keyword = False
         # { } that reach this state machine, plus 1 for static/instance blocks whose
         # bodies are a sub_state (} not seen at this level, balanced in callback).
         self._class_body_brace = 0
 
+    def _enum_constant_token(self, token):
+        """Reads NAME, NAME(arguments) and NAME(arguments) { body }: a
+        constant is not a method, and its body is a class body."""
+        if token == ';':
+            self._in_enum_constants = False
+            return False
+        if token == '(':
+            self.sub_state(JavaFunctionBodyStates(self.context, False), None, token)
+        elif token == '{' and self._class_body_brace > 0:
+            self.sub_state(
+                JavaClassBodyStates(self._enum_constant or self.class_name, False, self.context),
+                None, token)
+        elif token[0].isalpha() or token[0] in '_$':
+            self._enum_constant = token
+        elif token != ',':
+            return False
+        return True
+
     def _state_global(self, token):
+        if self._in_enum_constants and self._enum_constant_token(token):
+            return
+
         if self._after_static_keyword:
             self._after_static_keyword = False
             if token == '{':

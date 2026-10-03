@@ -63,6 +63,7 @@ class JavaStates(CLikeStates):  # pylint: disable=R0903
         super(JavaStates, self).__init__(context)
         self.class_name = None
         self.is_record = False
+        self.is_enum = False
         self.in_record_constructor = False
         self.in_method_body = False
         self.handling_dot_class = False
@@ -117,6 +118,7 @@ class JavaStates(CLikeStates):  # pylint: disable=R0903
             self._java_after_unqualified_annotation = False
             self.class_name = None
             self.is_record = False
+            self.is_enum = token == "enum"
             self.in_record_constructor = False
             self._state = self._state_class_declaration
             return True
@@ -130,6 +132,7 @@ class JavaStates(CLikeStates):  # pylint: disable=R0903
             self._java_after_unqualified_annotation = False
             self.class_name = None
             self.is_record = True
+            self.is_enum = False
             self.in_record_constructor = False
             self._state = self._state_class_declaration
             return True
@@ -173,7 +176,9 @@ class JavaStates(CLikeStates):  # pylint: disable=R0903
         if token == '{':
             def callback():
                 self._state = self._state_global
-            self.sub_state(JavaClassBodyStates(self.class_name, self.is_record, self.context), callback, token)
+            self.sub_state(
+                JavaClassBodyStates(self.class_name, self.is_record, self.context, self.is_enum),
+                callback, token)
         elif token == '(':  # Record parameters
             self._state = self._state_record_parameters
         elif token[0].isalpha():
