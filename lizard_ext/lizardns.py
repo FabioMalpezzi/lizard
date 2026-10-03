@@ -72,7 +72,15 @@ class LizardExtension(ExtensionBase):  # pylint: disable=R0903
     def __call__(self, tokens, reader=None):
         if 'python' in getattr(reader, 'language_names', ()):
             return self._indented_structures(tokens, reader)
+        self._start_file()
         return super(LizardExtension, self).__call__(tokens, reader)
+
+    def _start_file(self):
+        """A file that ends inside a block or inside the head of a structure
+        must not leave its state to the next file of the same run."""
+        self.structure_piles = [0]
+        self.br_count = 0
+        self._state = self._state_global
 
     def _indented_structures(self, tokens, reader):
         """Python has no braces: a structure is a statement that starts a

@@ -670,3 +670,33 @@ class TestJavaScriptNestedStructures(unittest.TestCase):
         code = "function f(p) {\n  return p.catch(() => null);\n}\n"
         self.assertEqual([('(anonymous)', 0), ('f', 0)],
                          self.nested_structures("a.js", code))
+
+
+class TestNestedStructuresOfTheNextFile(unittest.TestCase):
+
+    NESTED = """
+    int nested(int a) {
+      for (;;) {
+        if (a) {
+          while (a) {
+            a--;
+          }
+        }
+      }
+    }
+    """
+
+    def setUp(self):
+        self.analyzer = FileAnalyzer(get_extensions([NestedStructure()]))
+
+    def nested_structures(self, filename, code):
+        functions = self.analyzer.analyze_source_code(filename, code).function_list
+        return [(f.name, f.max_nested_structures) for f in functions]
+
+    def test_file_after_a_file_that_ends_inside_the_head_of_a_structure(self):
+        self.nested_structures("a.c", "int broken(int a) { if (a > MACRO(1 ) { return 1; } }")
+        self.assertEqual([('nested', 3)], self.nested_structures("b.c", self.NESTED))
+
+    def test_file_after_a_file_that_ends_inside_a_block(self):
+        self.nested_structures("a.c", "int broken(int a) { if (a) { while (a) { for (;;) {")
+        self.assertEqual([('nested', 3)], self.nested_structures("b.c", self.NESTED))
