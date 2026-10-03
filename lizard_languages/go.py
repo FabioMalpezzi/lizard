@@ -45,6 +45,7 @@ class GoReader(CodeReader, CCppCommentsMixin):
 class GoStates(GoLikeStates):  # pylint: disable=R0903
     TOKENS_AFTER_NO_BODY = ('}', ';', '=')
     BODY_STARTS_ON_SIGNATURE_LINE = True
+    PARAMETER_BRACKETS = {'[': ']', '{': '}'}
 
     def __init__(self, context):
         super(GoStates, self).__init__(context)

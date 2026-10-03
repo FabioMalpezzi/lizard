@@ -381,3 +381,10 @@ class Test_parser_for_Go(unittest.TestCase):
                 ''')
         self.assertEqual(["fixups"], [f.name for f in result])
         self.assertEqual(2, result[0].cyclomatic_complexity)
+
+    def test_parameter_with_braces_or_brackets_in_its_type(self):
+        result = get_go_function_list('''
+            func wait(done chan struct{}, pairs map[string]Pair[int, string], n int) {
+            }
+                ''')
+        self.assertEqual(3, result[0].parameter_count)

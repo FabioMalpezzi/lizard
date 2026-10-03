@@ -81,6 +81,7 @@ def _end_of_block_comment(source_code, start):
 class RustStates(GoLikeStates):  # pylint: disable=R0903
     FUNC_KEYWORD = 'fn'
     TOKENS_AFTER_NO_BODY = ('}', ';', '=')
+    PARAMETER_BRACKETS = {'[': ']', '{': '}', '<': '>'}
 
 
 class RustClosureStates(CodeStateMachine):  # pylint: disable=R0903

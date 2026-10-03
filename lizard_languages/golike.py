@@ -15,12 +15,16 @@ class GoLikeStates(CodeStateMachine):  # pylint: disable=R0903
     TOKENS_AFTER_NO_BODY = ()
     # In Go the brace of the body is on the line where the signature ends.
     BODY_STARTS_ON_SIGNATURE_LINE = False
+    # The brackets, besides parentheses, that in the type of a parameter
+    # can hold commas: what is inside them is no parameter of the function.
+    PARAMETER_BRACKETS = {}
 
     def __init__(self, context):
         super(GoLikeStates, self).__init__(context)
         self._result_brackets = 0
         self._signature_line = None
         self._first_parentheses = []
+        self._parameter_brackets = 0
 
     def _state_global(self, token):
         if token == self.FUNC_KEYWORD:
@@ -141,10 +145,21 @@ class GoLikeStates(CodeStateMachine):  # pylint: disable=R0903
         # The parentheses of a parameter of function type, as in Go
         # "less func(a, b int) bool", hold no parameters of this function.
         self._signature_line = self.context.current_line
-        if token not in '()' and self.br_count == 1:
-            self.context.parameter(token)
-        elif self.br_count > 1 or (token == ')' and self.br_count == 1):
+        if token == '(' and self.br_count == 1:
+            self._parameter_brackets = 0
+            return
+        if token == ')' and self.br_count == 0:
+            return
+        nested = self._parameter_brackets > 0 or self.br_count > 1 or token == ')'
+        if token in self.PARAMETER_BRACKETS:
+            self._parameter_brackets += 1
+            nested = True
+        elif nested and token in self.PARAMETER_BRACKETS.values():
+            self._parameter_brackets = max(self._parameter_brackets - 1, 0)
+        if nested:
             self.context.add_to_long_function_name(" " + token)
+        else:
+            self.context.parameter(token)
 
     def _starts_another_line(self):
         line, self._signature_line = self._signature_line, self.context.current_line
