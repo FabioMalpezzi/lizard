@@ -907,3 +907,26 @@ class Test_cpp_raw_string_literals(unittest.TestCase):
         self.assertEqual("b", result[1].name)
         self.assertEqual(5, result[1].start_line)
         self.assertEqual(8, result[1].end_line)
+
+class Test_override_final(unittest.TestCase):
+
+    def test_method_declared_override_final(self):
+        result = get_cpp_function_list("""
+class Derived final : public Base {
+ public:
+  int last() const override final {
+    if (n_ > 0) {
+      return 1;
+    }
+    return 0;
+  }
+  int other() final override { return 2; }
+  int one() override { return 3; }
+};
+int after(int a) { return a; }
+""")
+        self.assertEqual(
+            ['Derived::last', 'Derived::other', 'Derived::one', 'after'],
+            [f.name for f in result])
+        self.assertEqual((4, 9), (result[0].start_line, result[0].end_line))
+        self.assertEqual(2, result[0].cyclomatic_complexity)

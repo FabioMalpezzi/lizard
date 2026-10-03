@@ -222,6 +222,10 @@ class CLikeStates(CodeStateMachine):
     def _state_dec_to_imp(self, token):
         if token in ('const', '&', '&&'):
             self.context.add_to_long_function_name(" " + token)
+        elif token in ('override', 'final'):
+            # C++ virt-specifiers, in any order; alone or together they
+            # are not the start of old C style parameters.
+            pass
         elif token == 'throw':
             self._state = self._state_throw
         elif token == 'throws':
