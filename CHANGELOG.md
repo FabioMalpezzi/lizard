@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## 1.24.0+senso.4
+
+Fourth Senso build of 1.24.0: 1.24.0+senso.3 with the fixes for Go, Rust,
+Java, C and C++, and for the extensions for nested structures and
+duplicates, proposed upstream from the branches pr/go-*, pr/rust-*,
+pr/java-*, pr/c-*, pr/cpp-*, pr/ns-* and pr/duplicate-end-line. The Go and
+Rust readers were compared, function by function, with the Go parser and
+with syn on real code. It also has the commit 116eb41 of the upstream master, which
+counts the arms of a Rust match (#494).
+
+### Bug Fixes
+- Go: a result type written with braces; a function type or a function without a name at the top level; a type switch; a generic type declaration; a composite literal of function type; parameters of function type or with brackets in their type; `catch` and `while` are names; `<-`, the shifts, `&^` and the compound assignments are one token
+- Rust: a char literal of one letter; nested block comments; `#` is not a C macro; raw strings with quotes; a trait method or a function type without a body; parameters with generic arguments or patterns; `loop` is counted; a closure without parameters is not `||`; ranges, float literals and the compound assignments are one token
+- Java: an enum constant with a body is not a method; a method after an annotation element with a default value; a method of the outer class after an inner class; the wildcard of a nested generic type is not a decision
+- C/C++: a brace or a parenthesis opened in both branches of `#ifdef`; a method declared `override final`; `auto&&` in a range-based for is not a logical operator; array parameters are counted (also in Java)
+- Nested structures (-ENS): the state starts again with each file; the head of a Go structure with `;` or a composite literal; `select` in Go, `match` and `loop` in Rust; `do` and `try` are names in Go and Rust
+- Duplicates (-Eduplicate): a duplicate ends at the end of the copy
+
 ## 1.24.0+senso.3
 
 Third Senso build of 1.24.0: 1.24.0+senso.2 with the fixes found by
