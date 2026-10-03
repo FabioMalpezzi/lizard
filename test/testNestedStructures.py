@@ -600,3 +600,81 @@ class TestNestedStructuresOfTheNextFile(unittest.TestCase):
     def test_file_after_a_file_that_ends_inside_a_block(self):
         self.nested_structures("a.c", "int broken(int a) { if (a) { while (a) { for (;;) {")
         self.assertEqual([('nested', 3)], self.nested_structures("b.c", self.NESTED))
+
+
+class TestGoNestedStructures(unittest.TestCase):
+
+    def nested_structures(self, code):
+        analyzer = FileAnalyzer(get_extensions([NestedStructure()]))
+        functions = analyzer.analyze_source_code("a.go", code).function_list
+        return [(f.name, f.max_nested_structures) for f in functions]
+
+    def test_for_with_three_clauses(self):
+        self.assertEqual([('sum', 2)], self.nested_structures("""
+            func sum(n int) int {
+                total := 0
+                for i := 0; i < n; i++ {
+                    if i%2 == 0 {
+                        total += i
+                    }
+                }
+                return total
+            }
+            """))
+
+    def test_if_with_an_initial_statement(self):
+        self.assertEqual([('first', 2)], self.nested_structures("""
+            func first(m map[string]int) int {
+                if v, ok := m["a"]; ok {
+                    for v > 10 {
+                        v--
+                    }
+                    return v
+                }
+                return 0
+            }
+            """))
+
+    def test_switch_with_an_initial_statement(self):
+        self.assertEqual([('kind', 2)], self.nested_structures("""
+            func kind(a int) int {
+                switch b := a * 2; {
+                case b > 10:
+                    if a > 7 {
+                        return 2
+                    }
+                }
+                return 0
+            }
+            """))
+
+    def test_select_is_a_structure(self):
+        self.assertEqual([('drain', 2)], self.nested_structures("""
+            func drain(data <-chan int, done <-chan bool) int {
+                total := 0
+                for {
+                    select {
+                    case v := <-data:
+                        total += v
+                    case <-done:
+                        return total
+                    }
+                }
+            }
+            """))
+
+    def test_structures_after_a_for_with_three_clauses(self):
+        self.assertEqual([('twice', 1)], self.nested_structures("""
+            func twice(n int) int {
+                total := 0
+                for i := 0; i < n; i++ {
+                    total += i
+                }
+                if total > 10 {
+                    total = 10
+                } else {
+                    total = 0
+                }
+                return total
+            }
+            """))
