@@ -20,6 +20,7 @@ class GoReader(CodeReader, CCppCommentsMixin):
     @staticmethod
     def generate_tokens(source_code, addition='', token_class=None):
         addition = addition + r"|`[^`]*`"  # Add support for backtick-quoted strings
+        addition = addition + r"|<-"  # The receive operator is one token
         return CodeReader.generate_tokens(source_code, addition, token_class)
 
     def __call__(self, tokens, reader):
