@@ -231,3 +231,88 @@ class Test_parser_for_Go(unittest.TestCase):
         self.assertEqual(["pair"], [f.name for f in result])
         self.assertEqual(2, result[0].cyclomatic_complexity)
         self.assertEqual(7, result[0].end_line)
+
+    def test_function_type_in_a_struct_type_inside_a_function(self):
+        result = get_go_function_list('''
+            func table(t *testing.T) {
+                for _, test := range []struct {
+                    name    string
+                    consume func(a int, b chan struct{})
+                    closed  bool
+                }{
+                    {name: "a"},
+                } {
+                    if test.closed {
+                        t.Log(test.name)
+                    }
+                }
+            }
+
+            func after() {}
+                ''')
+        self.assertEqual(["table", "after"], [f.name for f in result])
+        self.assertEqual(3, result[0].cyclomatic_complexity)
+        self.assertEqual(14, result[0].end_line)
+
+    def test_variable_of_function_type(self):
+        result = get_go_function_list('''
+            func outer(a int) int {
+                var check func(int) bool
+                check = isPositive
+                if check(a) {
+                    return a
+                }
+                return 0
+            }
+                ''')
+        self.assertEqual(["outer"], [f.name for f in result])
+        self.assertEqual(2, result[0].cyclomatic_complexity)
+
+    def test_function_without_a_name_at_the_top_level(self):
+        result = get_go_function_list('''
+            var hook = func(a int, b string) (int, error) {
+                return a, nil
+            }
+
+            var servers = map[string]newServer{
+                "plain": func(t *testing.T, h Handler) *Server {
+                    return NewServer(h)
+                },
+            }
+
+            var isBusy = func(err error) bool { return false }
+                ''')
+        self.assertEqual(["", "", ""], [f.name for f in result])
+        self.assertEqual([(2, 4), (7, 9), (12, 12)],
+                         [(f.start_line, f.end_line) for f in result])
+        self.assertEqual([2, 2, 1], [f.parameter_count for f in result])
+
+    def test_function_type_followed_by_a_method(self):
+        result = get_go_function_list('''
+            var hook func(res *Response, err error)
+
+            func (c *Client) do(req *Request) (res *Response, err error) {
+                if hook != nil {
+                    defer hook(res, err)
+                }
+                return c.send(req)
+            }
+                ''')
+        self.assertEqual(["do"], [f.name for f in result])
+        self.assertEqual(2, result[0].cyclomatic_complexity)
+        self.assertEqual(1, result[0].parameter_count)
+
+    def test_condition_after_a_variable_of_function_type(self):
+        result = get_go_function_list('''
+            func serve(c Conn, opts *Opts) {
+                var newf func(*serverConn)
+                if inTests {
+                    newf = opts.hook
+                }
+                run(c, opts, newf)
+            }
+                ''')
+        self.assertEqual(["serve"], [f.name for f in result])
+        self.assertEqual(2, result[0].cyclomatic_complexity)
+        self.assertEqual(7, result[0].nloc)
+        self.assertEqual(36, result[0].token_count)
