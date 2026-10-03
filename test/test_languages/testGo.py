@@ -226,3 +226,14 @@ class Test_parser_for_Go(unittest.TestCase):
                 ''')
         self.assertEqual(["", "check"], [f.name for f in result])
         self.assertEqual(1, result[1].cyclomatic_complexity)
+
+    def test_compound_assignments_are_one_token(self):
+        result = get_go_function_list('''
+            func scale(a int) int {
+                a *= 2
+                a /= 3
+                a %= 5
+                return a
+            }
+                ''')
+        self.assertEqual(20, result[0].token_count)
