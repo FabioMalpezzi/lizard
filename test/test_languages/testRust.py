@@ -243,3 +243,11 @@ class TestRust(unittest.TestCase):
         ''')
         self.assertEqual(['after'], [f.name for f in result])
         self.assertEqual(2, result[0].cyclomatic_complexity)
+
+    def test_parameter_of_function_type(self):
+        result = get_rust_function_list('''
+        fn first(list: &[i32], less: impl Fn(i32, i32) -> bool) -> i32 {
+            list[0]
+        }
+        ''')
+        self.assertEqual(2, result[0].parameter_count)

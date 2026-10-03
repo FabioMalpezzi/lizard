@@ -367,3 +367,11 @@ class Test_parser_for_Go(unittest.TestCase):
                 ''')
         self.assertEqual(["fixups"], [f.name for f in result])
         self.assertEqual(2, result[0].cyclomatic_complexity)
+
+    def test_parameter_of_function_type(self):
+        result = get_go_function_list('''
+            func first(list []int, less func(a, b int) bool) int {
+                return list[0]
+            }
+                ''')
+        self.assertEqual(2, result[0].parameter_count)

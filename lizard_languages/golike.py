@@ -138,9 +138,13 @@ class GoLikeStates(CodeStateMachine):  # pylint: disable=R0903
 
     @CodeStateMachine.read_inside_brackets_then("()", '_expect_function_impl')
     def _function_dec(self, token):
+        # The parentheses of a parameter of function type, as in Go
+        # "less func(a, b int) bool", hold no parameters of this function.
         self._signature_line = self.context.current_line
-        if token not in '()':
+        if token not in '()' and self.br_count == 1:
             self.context.parameter(token)
+        elif self.br_count > 1 or (token == ')' and self.br_count == 1):
+            self.context.add_to_long_function_name(" " + token)
 
     def _starts_another_line(self):
         line, self._signature_line = self._signature_line, self.context.current_line
