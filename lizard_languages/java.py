@@ -70,6 +70,7 @@ class JavaStates(CLikeStates):  # pylint: disable=R0903
         self.handling_method_ref = False
         self._java_after_unqualified_annotation = False
         self._new_generic_depth = 0
+        self._enclosing_class = (None, False, False)
 
     def _consume_java_expression_tokens(self, token):
         """Skip tokens that are not class declarations: Foo.class, Type::meth."""
@@ -114,6 +115,13 @@ class JavaStates(CLikeStates):  # pylint: disable=R0903
             self.context.current_function.name = f"{self.class_name}::{name}"
 
     def _try_start_a_class(self, token, after_unqualified_annotation=False):
+        enclosing = (self.class_name, self.is_record, self.is_enum)
+        if self._try_start_a_class_declaration(token, after_unqualified_annotation):
+            self._enclosing_class = enclosing
+            return True
+        return False
+
+    def _try_start_a_class_declaration(self, token, after_unqualified_annotation):
         if token in ("class", "enum"):
             self._java_after_unqualified_annotation = False
             self.class_name = None
@@ -174,7 +182,11 @@ class JavaStates(CLikeStates):  # pylint: disable=R0903
 
     def _state_class_declaration(self, token):
         if token == '{':
+            enclosing = self._enclosing_class
+
             def callback():
+                # Back in the class around: its methods take its name again.
+                self.class_name, self.is_record, self.is_enum = enclosing
                 self._state = self._state_global
             self.sub_state(
                 JavaClassBodyStates(self.class_name, self.is_record, self.context, self.is_enum),
