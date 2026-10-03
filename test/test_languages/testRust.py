@@ -338,3 +338,14 @@ class TestRust(unittest.TestCase):
         self.assertEqual(['raw', 'after'], [f.name for f in result])
         self.assertEqual((2, 9), (result[0].start_line, result[0].end_line))
         self.assertEqual(2, result[1].cyclomatic_complexity)
+
+    def test_compound_assignments_are_one_token(self):
+        result = get_rust_function_list('''
+        fn scale(mut a: i32) -> i32 {
+            a *= 2;
+            a /= 3;
+            a %= 5;
+            a
+        }
+        ''')
+        self.assertEqual(25, result[0].token_count)
