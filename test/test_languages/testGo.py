@@ -388,3 +388,12 @@ class Test_parser_for_Go(unittest.TestCase):
             }
                 ''')
         self.assertEqual(3, result[0].parameter_count)
+
+    def test_shift_and_bit_clear_operators_are_one_token(self):
+        result = get_go_function_list('''
+            func mask(a uint, n uint) uint {
+                a <<= 1
+                return (a << n) >> 2 &^ 1
+            }
+                ''')
+        self.assertEqual(25, result[0].token_count)

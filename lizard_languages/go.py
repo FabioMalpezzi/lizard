@@ -21,6 +21,8 @@ class GoReader(CodeReader, CCppCommentsMixin):
     def generate_tokens(source_code, addition='', token_class=None):
         addition = addition + r"|`[^`]*`"  # Add support for backtick-quoted strings
         addition = addition + r"|<-"  # The receive operator is one token
+        # Go has no "<>" brackets: shifts and bit clear are one token too
+        addition = addition + r"|<<=|>>=|&\^=|<<|>>|&\^"
         return CodeReader.generate_tokens(source_code, addition, token_class)
 
     def __call__(self, tokens, reader):
