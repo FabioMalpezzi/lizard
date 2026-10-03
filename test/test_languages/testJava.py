@@ -252,3 +252,24 @@ class After {
 """)
         self.assertEqual(['After::afterMark'], [f.name for f in result])
         self.assertEqual((8, 10), (result[0].start_line, result[0].end_line))
+
+    def test_method_of_the_outer_class_after_an_inner_class(self):
+        result = get_java_function_list("""
+class Outer {
+  int before(int a) {
+    return a;
+  }
+
+  class Inner {
+    int inside(int a) {
+      return a;
+    }
+  }
+
+  int after(int a) {
+    return a;
+  }
+}
+""")
+        self.assertEqual(['Outer::before', 'Inner::inside', 'Outer::after'],
+                         [f.name for f in result])
