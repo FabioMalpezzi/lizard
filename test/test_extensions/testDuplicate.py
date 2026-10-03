@@ -322,6 +322,13 @@ class TestDuplicateExtensionAcrossFiles(unittest.TestCase):
             [('f1.cpp', 1, 17), ('f2.cpp', 1, 17)],
             [(s.file_name, s.start_line, s.end_line) for s in duplicates[0]])
 
+    def test_duplicate_rate_of_two_copies_is_not_above_one(self):
+        self.detect({
+                'f1.cpp': self.LONG_FUNCTION % 'total_of_rows',
+                'f2.cpp': self.LONG_FUNCTION % 'sum_of_orders',
+                })
+        self.assertEqual(1, self.detector.duplicate_rate())
+
     def test_duplicate_ends_at_the_same_line_with_other_files_before(self):
         duplicates = self.detect({
                 'f0.cpp': self.builder.different_six_line_function().build(),
