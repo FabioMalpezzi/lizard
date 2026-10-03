@@ -246,3 +246,14 @@ class TestRust(unittest.TestCase):
         }
         ''')
         self.assertEqual(7, result[0].cyclomatic_complexity)
+
+    def test_range_operator_is_one_token(self):
+        result = get_rust_function_list('''
+        fn sum(n: i32) -> i32 {
+            let mut t = 0;
+            for i in 0..n { t += i; }
+            for i in 0..=n { t += i; }
+            t
+        }
+        ''')
+        self.assertEqual(42, result[0].token_count)
