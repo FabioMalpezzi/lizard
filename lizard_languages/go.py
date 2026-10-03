@@ -24,6 +24,8 @@ class GoReader(CodeReader, CCppCommentsMixin):
     def generate_tokens(source_code, addition='', token_class=None):
         addition += r"|`[^`]*`"
         addition += r"|<-"  # The receive operator is one token
+        # Go has no "<>" brackets: shifts and bit clear are one token too
+        addition += r"|<<=|>>=|&\^=|<<|>>|&\^"
         pattern = compiled_token_pattern(addition)
 
         for match in pattern.finditer(source_code):
