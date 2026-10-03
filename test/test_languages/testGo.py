@@ -397,3 +397,16 @@ class Test_parser_for_Go(unittest.TestCase):
             }
                 ''')
         self.assertEqual(25, result[0].token_count)
+
+    def test_catch_and_while_are_names(self):
+        result = get_go_function_list('''
+            func check(t *testing.T, while bool) {
+                catch := func() {
+                    recover()
+                }
+                defer catch()
+                t.Log(while)
+            }
+                ''')
+        self.assertEqual(["", "check"], [f.name for f in result])
+        self.assertEqual(1, result[1].cyclomatic_complexity)

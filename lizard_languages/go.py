@@ -13,6 +13,10 @@ class GoReader(CodeReader, CCppCommentsMixin):
     ext = ['go']
     language_names = ['go']
 
+    # "while" and "catch" are not keywords of Go, and it has no "?"
+    _control_flow_keywords = {'if', 'for'}
+    _ternary_operators = set()
+
     def __init__(self, context):
         super(GoReader, self).__init__(context)
         self.parallel_states = [GoStates(context)]
