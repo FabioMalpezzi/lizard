@@ -69,6 +69,17 @@ class LizardExtension(ExtensionBase):  # pylint: disable=R0903
         super(LizardExtension, self).__init__(None)
         self.structure_piles = [0]  # Invariant: must always have at least one element
 
+    def __call__(self, tokens, reader=None):
+        self._start_file()
+        return super(LizardExtension, self).__call__(tokens, reader)
+
+    def _start_file(self):
+        """A file that ends inside a block or inside the head of a structure
+        must not leave its state to the next file of the same run."""
+        self.structure_piles = [0]
+        self.br_count = 0
+        self._state = self._state_global
+
     def _push_scope(self):
         """Push a new scope level. Safe to call anytime."""
         self.structure_piles.append(0)

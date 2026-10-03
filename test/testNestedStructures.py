@@ -2,6 +2,7 @@ import unittest
 
 from .testHelpers import get_cpp_function_list_with_extension, \
     get_python_function_list_with_extension
+from lizard import FileAnalyzer, get_extensions
 from lizard_ext.lizardns import LizardExtension as NestedStructure
 
 
@@ -570,3 +571,32 @@ class X: #TestPythonNestedStructures(unittest.TestCase):
                     print(j)
         """)
         self.assertEqual(2, result[0].max_nested_structures)
+
+class TestNestedStructuresOfTheNextFile(unittest.TestCase):
+
+    NESTED = """
+    int nested(int a) {
+      for (;;) {
+        if (a) {
+          while (a) {
+            a--;
+          }
+        }
+      }
+    }
+    """
+
+    def setUp(self):
+        self.analyzer = FileAnalyzer(get_extensions([NestedStructure()]))
+
+    def nested_structures(self, filename, code):
+        functions = self.analyzer.analyze_source_code(filename, code).function_list
+        return [(f.name, f.max_nested_structures) for f in functions]
+
+    def test_file_after_a_file_that_ends_inside_the_head_of_a_structure(self):
+        self.nested_structures("a.c", "int broken(int a) { if (a > MACRO(1 ) { return 1; } }")
+        self.assertEqual([('nested', 3)], self.nested_structures("b.c", self.NESTED))
+
+    def test_file_after_a_file_that_ends_inside_a_block(self):
+        self.nested_structures("a.c", "int broken(int a) { if (a) { while (a) { for (;;) {")
+        self.assertEqual([('nested', 3)], self.nested_structures("b.c", self.NESTED))
