@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+## 1.24.0+senso.5
+
+Fifth Senso build of 1.24.0: 1.24.0+senso.4 with the fixes asked by an
+independent review of that build, proposed upstream from the branches
+pr/c-ifdef-unbalanced-branches, pr/c-array-parameters,
+pr/rust-match-block-subject, pr/go-tokens-and-keywords,
+pr/go-rust-parameters, pr/ns-go-rust-structures and pr/duplicate-end-line.
+The three builds were compared on real code: 3,146 Go files with the Go
+parser and scanner, 3,000 Rust files with syn, 1,325 C and C++ files.
+
+### Bug Fixes
+- C/C++, C#, Objective-C: the `#else` branch is no longer lost after `~(` in the first branch of `#if`; after a branch of `#ifdef` that leaves a brace or a parenthesis open the balanced branches are read, and an unbalanced `#if 0` is the branch that is skipped
+- C/C++: a parameter that is a pointer to a function returning `void` is counted; a `<` or a `>` of an expression in a parameter list is not a template bracket (also in Java)
+- Rust: a `match` with a block in its subject (`match unsafe { f() } { .. }`); a `match` without arms between the tokens of a macro
+- Go: a float literal is one token and `**` is two; a composite literal inside square brackets in the head of a structure (-ENS)
+- Duplicates (-Eduplicate): the duplicate rate of whole copies is 100%, not more
+
+### Tests
+- Swift, Kotlin, Scala, Solidity and Zig: a parameter of function type is one parameter (fixed in 1.24.0+senso.4 with the code shared with Go and Rust)
+
 ## 1.24.0+senso.4
 
 Fourth Senso build of 1.24.0: 1.24.0+senso.3 with the fixes for Go, Rust,
