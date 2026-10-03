@@ -23,6 +23,7 @@ class GoReader(CodeReader, CCppCommentsMixin):
     @staticmethod
     def generate_tokens(source_code, addition='', token_class=None):
         addition += r"|`[^`]*`"
+        addition += r"|<-"  # The receive operator is one token
         pattern = compiled_token_pattern(addition)
 
         for match in pattern.finditer(source_code):
