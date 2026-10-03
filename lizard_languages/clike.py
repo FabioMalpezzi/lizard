@@ -175,6 +175,9 @@ class CLikeStates(CodeStateMachine):
 
     def _state_function(self, token):
         if token == '(':
+            # Nothing is left from the declaration before, where a "<" in
+            # a default value ("int z = a < b ? 1 : 2") may be still open.
+            self.bracket_stack = []
             self.next(self._state_dec, token)
         elif token == '::':
             self.context.add_to_function_name(token)
@@ -208,7 +211,14 @@ class CLikeStates(CodeStateMachine):
     def _state_dec(self, token):
         if token in self.parameter_bracket_open:
             self.bracket_stack.append(token)
+        elif token == '>':
+            # without a "<" to close it is an operator: "operator>>(a, b)"
+            if self.bracket_stack and self.bracket_stack[-1] == '<':
+                self.bracket_stack.pop()
         elif token in self.parameter_bracket_close:
+            # a "<" still open was an operator: "int z = a < b ? 1 : 2"
+            while self.bracket_stack and self.bracket_stack[-1] == '<':
+                self.bracket_stack.pop()
             if self.bracket_stack:
                 self.bracket_stack.pop()
             else:
