@@ -182,3 +182,13 @@ public void test() {
         result = get_java_function_list(code)
         self.assertEqual(1, len(result))
         self.assertEqual("test", result[0].name)
+
+    def test_array_parameter_with_brackets_after_the_name(self):
+        result = get_java_function_list("""
+class A {
+  int size(String names[], int extra) {
+    return names.length + extra;
+  }
+}
+""")
+        self.assertEqual(['names', 'extra'], result[0].parameters)
