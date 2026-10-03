@@ -678,3 +678,50 @@ class TestGoNestedStructures(unittest.TestCase):
                 return total
             }
             """))
+
+
+class TestRustNestedStructures(unittest.TestCase):
+
+    def nested_structures(self, code):
+        analyzer = FileAnalyzer(get_extensions([NestedStructure()]))
+        functions = analyzer.analyze_source_code("a.rs", code).function_list
+        return [(f.name, f.max_nested_structures) for f in functions]
+
+    def test_match_is_a_structure_and_its_arms_are_not(self):
+        self.assertEqual([('name', 1)], self.nested_structures("""
+            fn name(x: i32) -> &'static str {
+                match x {
+                    1 => "one",
+                    2 | 3 => "few",
+                    _ => "many",
+                }
+            }
+            """))
+
+    def test_loop_is_a_structure(self):
+        self.assertEqual([('count', 3)], self.nested_structures("""
+            fn count(n: i32) -> i32 {
+                let mut total = 0;
+                'outer: loop {
+                    for i in 0..n {
+                        if total > 100 {
+                            break 'outer;
+                        }
+                        total += i + 1;
+                    }
+                }
+                total
+            }
+            """))
+
+    def test_structure_inside_a_match_arm(self):
+        self.assertEqual([('pick', 2)], self.nested_structures("""
+            fn pick(x: Option<i32>) -> i32 {
+                match x {
+                    Some(v) => {
+                        if v > 0 { v } else { 0 }
+                    }
+                    None => 0,
+                }
+            }
+            """))

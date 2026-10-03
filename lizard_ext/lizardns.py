@@ -54,7 +54,7 @@ class LizardExtension(ExtensionBase):  # pylint: disable=R0903
                       'except', 'with'])
     matching_structures = set(['else', 'elif', 'catch', 'finally'])
     # Structures that only some languages have.
-    language_structures = {'go': ('select',)}
+    language_structures = {'go': ('select',), 'rust': ('match', 'loop')}
     # Languages in which the head of a structure has no parentheses and
     # runs up to the brace of its body, with ';' between its clauses.
     languages_with_head_up_to_brace = ('go',)
