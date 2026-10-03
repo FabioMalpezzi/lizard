@@ -178,3 +178,37 @@ class TestRust(unittest.TestCase):
         self.assertEqual(['pick'], [f.name for f in result])
         self.assertEqual(2, result[0].parameter_count)
         self.assertEqual(7, result[0].end_line)
+
+    def test_nested_block_comment(self):
+        result = get_rust_function_list('''
+        fn positive(a: i32) -> i32 {
+            /* a comment /* nested */ with a brace } */
+            if a > 0 {
+                return a;
+            }
+            0
+        }
+
+        fn after(a: i32) -> i32 {
+            a
+        }
+        ''')
+        self.assertEqual(['positive', 'after'], [f.name for f in result])
+        self.assertEqual(2, result[0].cyclomatic_complexity)
+        self.assertEqual(8, result[0].end_line)
+        self.assertEqual(6, result[0].nloc)
+
+    def test_nested_block_comment_on_many_lines(self):
+        result = get_rust_function_list('''
+        fn one() -> i32 {
+            /* outer
+               /* inner { */
+               still a comment: if x { "
+            */
+            1
+        }
+        ''')
+        self.assertEqual(['one'], [f.name for f in result])
+        self.assertEqual(1, result[0].cyclomatic_complexity)
+        self.assertEqual(8, result[0].end_line)
+        self.assertEqual(3, result[0].nloc)
