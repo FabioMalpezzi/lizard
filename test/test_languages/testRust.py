@@ -350,3 +350,14 @@ class TestRust(unittest.TestCase):
         ''')
         self.assertEqual(2, result[0].parameter_count)
         self.assertEqual(2, result[1].parameter_count)
+
+    def test_compound_assignments_are_one_token(self):
+        result = get_rust_function_list('''
+        fn scale(mut a: i32) -> i32 {
+            a *= 2;
+            a /= 3;
+            a %= 5;
+            a
+        }
+        ''')
+        self.assertEqual(25, result[0].token_count)

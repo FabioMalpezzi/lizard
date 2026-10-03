@@ -35,6 +35,7 @@ class RustReader(CodeReader, CCppCommentsMixin):
             for hashes in ('###', '##', '#')) + r"|r\#\w+"
         addition += r"|\.\.\.|\.\.=|\.\."  # ranges: one token each
         addition += r"|\d\w*\.\d\w*(?:[eE][-+]?\d\w*)?"  # 1.5, 2.0e-3, 1.0f64
+        addition += r"|\*=|/=|%="
         while source_code:
             offset = 0
             rest = ''
