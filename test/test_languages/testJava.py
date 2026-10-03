@@ -182,3 +182,57 @@ public void test() {
         result = get_java_function_list(code)
         self.assertEqual(1, len(result))
         self.assertEqual("test", result[0].name)
+
+    def test_enum_constant_with_a_body(self):
+        result = get_java_function_list("""
+enum Operation {
+  PLUS("+") {
+    int apply(int a, int b) {
+      return a + b;
+    }
+  },
+  MINUS("-") {
+    int apply(int a, int b) {
+      if (a > b) {
+        return a - b;
+      }
+      return 0;
+    }
+  };
+
+  private final String sign;
+
+  Operation(String sign) {
+    this.sign = sign;
+  }
+
+  abstract int apply(int a, int b);
+}
+""")
+        self.assertEqual(
+            ['PLUS::apply', 'MINUS::apply', 'Operation::Operation'],
+            [f.name for f in result])
+        self.assertEqual([(4, 6), (9, 14), (19, 21)],
+                         [(f.start_line, f.end_line) for f in result])
+        self.assertEqual([1, 2, 1],
+                         [f.cyclomatic_complexity for f in result])
+        self.assertEqual(2, result[0].parameter_count)
+
+    def test_enum_constants_without_a_body(self):
+        result = get_java_function_list("""
+enum Level {
+  LOW(1), HIGH(compute(2, 3)), @Deprecated NONE;
+
+  private final int value;
+
+  Level(int value) {
+    this.value = value;
+  }
+
+  int value() {
+    return value;
+  }
+}
+""")
+        self.assertEqual(['Level::Level', 'Level::value'],
+                         [f.name for f in result])
