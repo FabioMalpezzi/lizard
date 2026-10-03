@@ -582,6 +582,24 @@ class Test_array_parameters(unittest.TestCase):
         self.assertEqual(['v', 'm', 'n'], result[0].parameters)
 
 
+class Test_function_pointer_parameters(unittest.TestCase):
+
+    def parameter_counts(self, code):
+        return [f.parameter_count for f in get_cpp_function_list(code)]
+
+    def test_pointer_to_a_function_that_returns_void(self):
+        self.assertEqual([2, 2, 2], self.parameter_counts("""
+            void a(void (*cb)(int, void *), void *ud) { }
+            void b(void (*handlers[4])(int), int n) { }
+            void c(void* ud, void (*cb)(void*)) { }
+            """))
+
+    def test_void_alone_is_no_parameter(self):
+        result = get_cpp_function_list("int a(void) { return 1; }")
+        self.assertEqual(0, result[0].parameter_count)
+        self.assertEqual("a()", result[0].long_name)
+
+
 class Test_brackets_in_parameters(unittest.TestCase):
 
     def parameter_counts(self, code):

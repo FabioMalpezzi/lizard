@@ -254,6 +254,7 @@ class CLikeStates(CodeStateMachine):
         super(CLikeStates, self).__init__(context)
         self.bracket_stack = []
         self._saved_tokens = []
+        self._void = False
 
     def try_new_function(self, name):
         self.context.try_new_function(name)
@@ -275,6 +276,7 @@ class CLikeStates(CodeStateMachine):
             # Nothing is left from the declaration before, where a "<" in
             # a default value ("int z = a < b ? 1 : 2") may be still open.
             self.bracket_stack = []
+            self._void = False
             self.next(self._state_dec, token)
         elif token == '::':
             self.context.add_to_function_name(token)
@@ -306,6 +308,12 @@ class CLikeStates(CodeStateMachine):
 
     @CodeStateMachine.read_inside_brackets_then("()", "_state_dec_to_imp")
     def _state_dec(self, token):
+        if self._void:
+            # "void" alone means no parameters; before a "(" it is what
+            # a parameter of function type returns: void (*cb)(int)
+            self._void = False
+            if token == '(':
+                self.context.parameter('void')
         if token in self.parameter_bracket_open:
             self.bracket_stack.append(token)
         elif token == '>':
@@ -321,7 +329,9 @@ class CLikeStates(CodeStateMachine):
             else:
                 self.next(self._state_global)
         elif len(self.bracket_stack) == 1:
-            if token != 'void':  # void is a reserved keyword, meaning no parameters
+            if token == 'void':
+                self._void = True
+            else:
                 self.context.parameter(token)
             return
         self.context.add_to_long_function_name(token)
