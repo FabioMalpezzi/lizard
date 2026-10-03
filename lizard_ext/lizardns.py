@@ -53,6 +53,11 @@ class LizardExtension(ExtensionBase):  # pylint: disable=R0903
                       'do', 'try', 'catch', 'switch', 'finally',
                       'except', 'with'])
     matching_structures = set(['else', 'elif', 'catch', 'finally'])
+    # Structures that only some languages have.
+    language_structures = {'go': ('select',)}
+    # Languages in which the head of a structure has no parentheses and
+    # runs up to the brace of its body, with ';' between its clauses.
+    languages_with_head_up_to_brace = ('go',)
 
     @staticmethod
     def set_args(parser):
@@ -68,17 +73,23 @@ class LizardExtension(ExtensionBase):  # pylint: disable=R0903
     def __init__(self):
         super(LizardExtension, self).__init__(None)
         self.structure_piles = [0]  # Invariant: must always have at least one element
+        self._structures = self.structures
+        self._head_up_to_brace = False
 
     def __call__(self, tokens, reader=None):
-        self._start_file()
+        self._start_file(getattr(reader, 'language_names', ()))
         return super(LizardExtension, self).__call__(tokens, reader)
 
-    def _start_file(self):
+    def _start_file(self, language_names):
         """A file that ends inside a block or inside the head of a structure
         must not leave its state to the next file of the same run."""
         self.structure_piles = [0]
         self.br_count = 0
         self._state = self._state_global
+        self._structures = self.structures.union(
+            *[self.language_structures.get(name, ()) for name in language_names])
+        self._head_up_to_brace = any(
+            name in self.languages_with_head_up_to_brace for name in language_names)
 
     def _push_scope(self):
         """Push a new scope level. Safe to call anytime."""
@@ -124,8 +135,19 @@ class LizardExtension(ExtensionBase):  # pylint: disable=R0903
             if token == '}':
                 self._pop_scope()
             self._state = self._block_ending
-        elif token in self.structures:
-            self._state = self._in_structure_head
+        elif token in self._structures:
+            if self._head_up_to_brace:
+                self.pile_up_within_block()
+                self._state = self._in_head_up_to_brace
+            else:
+                self._state = self._in_structure_head
+
+    def _in_head_up_to_brace(self, token):
+        """Go: "for i := 0; i < n; i++ {" and "if v, ok := m[k]; ok {".
+        The ';' of the head does not end the structure."""
+        if token == '{' or token in self._structures:
+            self._state = self._state_global
+            self._state(token)
 
     @CodeStateMachine.read_inside_brackets_then("()")
     def _in_structure_head(self, token):
