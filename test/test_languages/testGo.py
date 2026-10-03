@@ -316,3 +316,54 @@ class Test_parser_for_Go(unittest.TestCase):
         self.assertEqual(2, result[0].cyclomatic_complexity)
         self.assertEqual(7, result[0].nloc)
         self.assertEqual(36, result[0].token_count)
+
+    def test_type_switch(self):
+        result = get_go_function_list('''
+            func ends(w writeFramer) bool {
+                switch v := w.(type) {
+                case *writeData:
+                    return v.endStream
+                case nil:
+                    panic("nil")
+                }
+                return false
+            }
+
+            func (flush) write(ctx writeContext) error {
+                return ctx.Flush()
+            }
+                ''')
+        self.assertEqual(["ends", "write"], [f.name for f in result])
+        self.assertEqual(10, result[0].end_line)
+        self.assertEqual(3, result[0].cyclomatic_complexity)
+
+    def test_generic_type_declaration_with_a_function_type(self):
+        result = get_go_function_list('''
+            type Runner[T any] interface {
+                testing.TB
+                Run(string, func(T)) bool
+            }
+
+            type Pair[K comparable, V any] struct {
+                less func(a, b K) bool
+            }
+
+            func (r *Recorder) close() {
+                r.done()
+            }
+                ''')
+        self.assertEqual(["close"], [f.name for f in result])
+        self.assertEqual((11, 13), (result[0].start_line, result[0].end_line))
+
+    def test_composite_literal_of_function_type(self):
+        result = get_go_function_list('''
+            func fixups() int {
+                for _, fn := range []func() func(){forceGo, forceCgo} {
+                    fn()()
+                }
+                protos := map[string]func(string, *tls.Conn) RoundTripper{}
+                return len(protos)
+            }
+                ''')
+        self.assertEqual(["fixups"], [f.name for f in result])
+        self.assertEqual(2, result[0].cyclomatic_complexity)
