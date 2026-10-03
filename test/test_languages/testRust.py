@@ -227,3 +227,22 @@ class TestRust(unittest.TestCase):
         }
         ''')
         self.assertEqual(3, result[0].cyclomatic_complexity)
+
+    def test_closure_without_parameters_is_not_a_logical_operator(self):
+        result = get_rust_function_list('''
+        fn lazy(value: Option<i32>) -> i32 {
+            let zero = || 0;
+            let moved = move || 1;
+            run(|| 2, || 3);
+            value.unwrap_or_else(|| 0)
+        }
+        ''')
+        self.assertEqual(1, result[0].cyclomatic_complexity)
+
+    def test_logical_or_is_still_counted(self):
+        result = get_rust_function_list('''
+        fn either(a: bool, b: Vec<bool>, c: Option<bool>) -> bool {
+            a || b[0] || f(a) || c? || "x".is_empty() || a
+        }
+        ''')
+        self.assertEqual(7, result[0].cyclomatic_complexity)
