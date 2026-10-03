@@ -705,6 +705,27 @@ class TestGoNestedStructures(unittest.TestCase):
             }
             """))
 
+    def test_composite_literal_inside_square_brackets_in_a_head(self):
+        self.assertEqual([('dirty', 3), ('send', 2)], self.nested_structures("""
+            func dirty(f *file, mod string, h string) int {
+                for _, m := range f.mods {
+                    if !f.status[modSum{mod, h}].dirty {
+                        for mod != h {
+                            return 1
+                        }
+                    }
+                }
+                return 0
+            }
+            func send(c chan int, a []int) {
+                for ; ; c <- a[S{}.i] {
+                    if len(a) > 3 {
+                        return
+                    }
+                }
+            }
+            """))
+
     def test_do_and_try_are_names(self):
         self.assertEqual([('do', 0), ('run', 1)], self.nested_structures("""
             func do(b int) {}
