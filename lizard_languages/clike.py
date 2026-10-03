@@ -45,8 +45,12 @@ class CLikeReader(CodeReader, CCppCommentsMixin):
 
     def preprocess(self, tokens):
         tilde = False
+        branches = _ConditionalBranches()
         for token in tokens:
-            if token == '~':
+            if branches.skipping and not token.startswith('#'):
+                for _ in range(token.count('\n')):
+                    yield '\n'
+            elif token == '~':
                 tilde = True
             elif tilde:
                 tilde = False
@@ -56,13 +60,57 @@ class CLikeReader(CodeReader, CCppCommentsMixin):
                 if macro:
                     if macro.group(1) in ('if', 'ifdef', 'elif'):
                         self.context.add_condition()
-                    elif macro.group(1) == 'include':
+                    elif macro.group(1) == 'include' and not branches.skipping:
                         yield "#include"
                         yield macro.group(2) or "\"\""
                     for _ in macro.group(2).split('\n')[1:]:
                         yield '\n'
+                    branches.directive(macro.group(1))
                 else:
+                    branches.count(token)
                     yield token
+
+
+class _ConditionalBranches(object):
+    """Follows #if, #else and #endif to find the branches that cannot be
+    read one after the other.
+
+    When the branches of a conditional each open a brace or a parenthesis
+    that is closed once after the #endif, as in
+
+        #ifdef A
+          if (x > 3) {
+        #else
+          if (x > 5) {
+        #endif
+
+    reading them all leaves a bracket open for the rest of the file. A
+    branch after one that left the brackets unbalanced is skipped: only its
+    line ends are kept. Balanced branches are all read, as before.
+    """
+
+    _brackets = {'{': (0, 1), '}': (0, -1), '(': (1, 1), ')': (1, -1)}
+
+    def __init__(self):
+        self.skipping = False
+        self._open = [0, 0]
+        self._conditionals = []
+
+    def count(self, token):
+        bracket = self._brackets.get(token)
+        if bracket:
+            self._open[bracket[0]] += bracket[1]
+
+    def directive(self, name):
+        if name in ('if', 'ifdef', 'ifndef'):
+            self._conditionals.append([tuple(self._open), False])
+        elif name in ('else', 'elif') and self._conditionals:
+            at_start, _ = self._conditionals[-1]
+            if tuple(self._open) != at_start:
+                self._conditionals[-1][1] = True
+        elif name == 'endif' and self._conditionals:
+            self._conditionals.pop()
+        self.skipping = any(skip for _, skip in self._conditionals)
 
 
 class CppRValueRefStates(CodeStateMachine):
