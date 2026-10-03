@@ -421,3 +421,24 @@ class Test_parser_for_Go(unittest.TestCase):
             }
                 ''')
         self.assertEqual(20, result[0].token_count)
+
+    def test_float_literal_is_one_token(self):
+        result = get_go_function_list('''
+            func half() float64 {
+                return 1.5
+            }
+            func sum(v []float64) (float64, complex128) {
+                z := 0x1p-2 + 1e3 + .5 + 1_0.2_5 + 2i + 1e-3 + 2.5e+3i
+                return z + v[0].Real(), 1.
+            }
+                ''')
+        self.assertEqual(9, result[0].token_count)
+        self.assertEqual(43, result[1].token_count)
+
+    def test_pointer_to_pointer_is_two_tokens(self):
+        result = get_go_function_list('''
+            func deref(p **int) int {
+                return **p
+            }
+                ''')
+        self.assertEqual(15, result[0].token_count)

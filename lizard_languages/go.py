@@ -28,6 +28,15 @@ class GoReader(CodeReader, CCppCommentsMixin):
         # Go has no "<>" brackets: shifts and bit clear are one token too
         addition = addition + r"|<<=|>>=|&\^=|<<|>>|&\^"
         addition = addition + r"|\*=|/=|%="
+        # float and imaginary literals: 1.5, 1., .5, 1e-3, 0x1p-2, 2.5i
+        addition = addition + (
+            r"|0[xX][0-9a-fA-F_]*\.?[0-9a-fA-F_]*[pP][-+]?\d[\d_]*i?"
+            r"|\d[\d_]*\.\d[\d_]*(?:[eE][-+]?\d[\d_]*)?i?"
+            r"|\d[\d_]*\.(?![\w.])"
+            r"|\.\d[\d_]*(?:[eE][-+]?\d[\d_]*)?i?"
+            r"|\d[\d_]*[eE][-+]\d[\d_]*i?")
+        # Go has no "**" operator: "**int" is two "*"
+        addition = addition + r"|\*(?=\*)"
         return CodeReader.generate_tokens(source_code, addition, token_class)
 
     def __call__(self, tokens, reader):
