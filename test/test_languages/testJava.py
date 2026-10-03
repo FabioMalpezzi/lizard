@@ -288,3 +288,13 @@ class A {
 }
 """)
         self.assertEqual(3, result[0].cyclomatic_complexity)
+
+    def test_array_parameter_with_brackets_after_the_name(self):
+        result = get_java_function_list("""
+class A {
+  int size(String names[], int extra) {
+    return names.length + extra;
+  }
+}
+""")
+        self.assertEqual(['names', 'extra'], result[0].parameters)

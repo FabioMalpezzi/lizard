@@ -524,6 +524,20 @@ class Test_c_cpp_lizard(unittest.TestCase):
         self.assertEqual("foo", result[0].name)
         self.assertEqual("bar", result[1].name)
 
+class Test_array_parameters(unittest.TestCase):
+
+    def test_array_parameter(self):
+        result = get_cpp_function_list(
+            "int main(int argc, char *argv[]) { return argc; }")
+        self.assertEqual(2, result[0].parameter_count)
+        self.assertEqual(['argc', 'argv'], result[0].parameters)
+
+    def test_array_parameter_with_a_size(self):
+        result = get_cpp_function_list(
+            "int sum(int v[10], int m[2][3], int n) { return n; }")
+        self.assertEqual(['v', 'm', 'n'], result[0].parameters)
+
+
 class Test_cpp11_Attributes(unittest.TestCase):
     """C++11 extendable attributes can appear pretty much anywhere."""
 

@@ -347,9 +347,10 @@ class FunctionInfo(Nesting):  # pylint: disable=R0902
         # allowing a trailing comma on the last parameter in an function
         # argument list.
         # Regex matches the parameter name, then optionally:
+        # - the brackets of a C style array, as in "char * argv [ ]"
         # - a default value given after an '=' sign
         # - a type annotation given after a ':'
-        matches = [re.search(r'(\w+)(\s=.*)?(\s:.*)?$', f)
+        matches = [re.search(r'(\w+)(\s\[[^\[\]]*\])*(\s=.*)?(\s:.*)?$', f)
                    for f in self.full_parameters]
         return [m.group(1) for m in matches if m]
 
