@@ -30,6 +30,7 @@ class RustReader(CodeReader, CCppCommentsMixin):
         # lifetimes, labels; with a closing quote it is a char literal: 'a'
         addition = r"|(?:'\w+\b(?!'))"
         addition += r"|\.\.\.|\.\.=|\.\."  # ranges: one token each
+        addition += r"|\d\w*\.\d\w*(?:[eE][-+]?\d\w*)?"  # 1.5, 2.0e-3, 1.0f64
         while source_code:
             offset = 0
             rest = ''

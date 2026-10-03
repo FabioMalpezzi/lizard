@@ -257,3 +257,11 @@ class TestRust(unittest.TestCase):
         }
         ''')
         self.assertEqual(42, result[0].token_count)
+
+    def test_float_literal_is_one_token(self):
+        result = get_rust_function_list('''
+        fn scale(x: f64) -> f64 {
+            x * 100.0 + 1.5e3 - t.0
+        }
+        ''')
+        self.assertEqual(20, result[0].token_count)
