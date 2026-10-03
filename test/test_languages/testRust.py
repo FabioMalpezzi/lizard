@@ -295,3 +295,45 @@ class TestRust(unittest.TestCase):
         ''')
         self.assertEqual(['after'], [f.name for f in result])
         self.assertEqual(2, result[0].cyclomatic_complexity)
+
+    def test_hash_is_not_the_start_of_a_macro(self):
+        result = get_rust_function_list('''
+        fn parse_outer(input: ParseStream) -> Result<Vec<Self>> {
+            let mut attrs = Vec::new();
+            while input.peek(Token![#]) {
+                attrs.push(input.call(single_parse_outer)?);
+            }
+            Ok(attrs)
+        }
+
+        #[inline] fn one() -> i32 { 1 }
+
+        #[cfg(test)]
+        fn two() -> i32 {
+            #![allow(unused)]
+            2
+        }
+        ''')
+        self.assertEqual(['parse_outer', 'one', 'two'], [f.name for f in result])
+        self.assertEqual(8, result[0].end_line)
+        self.assertEqual(3, result[0].cyclomatic_complexity)
+        self.assertEqual((13, 16), (result[2].start_line, result[2].end_line))
+
+    def test_raw_string_with_quotes(self):
+        result = get_rust_function_list('''
+        fn raw() -> String {
+            check(r#"  "'"  "#, br#"{"#, r"\\");
+            check(r#"  "\""  "#, r#"  "it's"  "#);
+            let r#type = r##"a "# { b"##;
+            String::from(r#"{
+              "key": "it's"
+            }"#)
+        }
+
+        fn after() -> u8 {
+            if b'"' == 34 { 1 } else { 0 }
+        }
+        ''')
+        self.assertEqual(['raw', 'after'], [f.name for f in result])
+        self.assertEqual((2, 9), (result[0].start_line, result[0].end_line))
+        self.assertEqual(2, result[1].cyclomatic_complexity)
