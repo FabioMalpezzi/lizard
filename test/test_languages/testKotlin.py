@@ -224,3 +224,12 @@ class Test_parser_for_Kotlin(unittest.TestCase):
         self.assertEqual("a", result[0].name)
         self.assertEqual("b", result[1].name)
         self.assertEqual("bar", result[2].name)
+
+    def test_parameter_of_function_type(self):
+        result = get_kotlin_function_list('''
+            fun sorted(items: List<Int>, less: (Int, Int) -> Boolean, limit: Int): List<Int> {
+                return items
+            }
+            ''')
+        self.assertEqual(3, result[0].parameter_count)
+        self.assertEqual(['items', 'less', 'limit'], result[0].parameters)
