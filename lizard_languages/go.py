@@ -43,4 +43,5 @@ class GoReader(CodeReader, CCppCommentsMixin):
 
 
 class GoStates(GoLikeStates):  # pylint: disable=R0903
-    pass
+    TOKENS_AFTER_NO_BODY = ('}', ';', '=')
+    BODY_STARTS_ON_SIGNATURE_LINE = True

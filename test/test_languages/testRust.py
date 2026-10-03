@@ -265,3 +265,33 @@ class TestRust(unittest.TestCase):
         }
         ''')
         self.assertEqual(20, result[0].token_count)
+
+    def test_trait_method_without_a_body(self):
+        result = get_rust_function_list('''
+        trait Shape {
+            fn area(&self) -> f64;
+            fn name(&self) -> String {
+                String::from("shape")
+            }
+        }
+
+        fn after(a: i32) -> i32 {
+            a
+        }
+        ''')
+        self.assertEqual(['name', 'after'], [f.name for f in result])
+        self.assertEqual((9, 11), (result[1].start_line, result[1].end_line))
+
+    def test_field_and_variable_of_function_type(self):
+        result = get_rust_function_list('''
+        struct Holder {
+            callback: fn(i32) -> i32,
+        }
+
+        fn after(a: i32) -> [i32; 2] {
+            let twice: fn(i32) -> i32 = double;
+            if a > 0 { [twice(a), a] } else { [0, 0] }
+        }
+        ''')
+        self.assertEqual(['after'], [f.name for f in result])
+        self.assertEqual(2, result[0].cyclomatic_complexity)
