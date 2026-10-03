@@ -811,6 +811,29 @@ int h(int x) {
         self.assertEqual(['f', 'g', 'h'], [f.name for f in result])
         self.assertEqual(4, result[2].cyclomatic_complexity)
 
+    def test_parenthesis_after_a_tilde_in_a_branch_of_if(self):
+        result = get_cpp_function_list("""
+int f(int mode, int x) {
+#if defined(_WIN32)
+    mode &= ~(1 | 2);
+#else
+    if (x > 0 && mode) {
+        for (;;) { x--; }
+    }
+#endif
+    return mode;
+}
+#ifdef A
+static int mask(int m) { return m & ~(4); }
+#else
+static int only_else(int m) { if (m) { return 1; } return 0; }
+#endif
+""")
+        self.assertEqual(['f', 'mask', 'only_else'], [f.name for f in result])
+        # 1, the #if, "if", "&&" and "for"
+        self.assertEqual(5, result[0].cyclomatic_complexity)
+        self.assertEqual(2, result[2].cyclomatic_complexity)
+
 
 class Test_Big(unittest.TestCase):
 
