@@ -212,3 +212,18 @@ class TestRust(unittest.TestCase):
         self.assertEqual(1, result[0].cyclomatic_complexity)
         self.assertEqual(8, result[0].end_line)
         self.assertEqual(3, result[0].nloc)
+
+    def test_loop_is_counted(self):
+        result = get_rust_function_list('''
+        fn count(n: i32) -> i32 {
+            let mut total = 0;
+            loop {
+                if total > n {
+                    break;
+                }
+                total += 1;
+            }
+            total
+        }
+        ''')
+        self.assertEqual(3, result[0].cyclomatic_complexity)

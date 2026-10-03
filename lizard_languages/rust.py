@@ -14,7 +14,7 @@ class RustReader(CodeReader, CCppCommentsMixin):
     language_names = ['rust']
 
     # Separated condition categories
-    _control_flow_keywords = {'if', 'for', 'while', 'catch', 'match', 'where'}
+    _control_flow_keywords = {'if', 'for', 'while', 'loop', 'catch', 'match', 'where'}
     _logical_operators = {'&&', '||'}
     _case_keywords = set()  # Rust uses match arms, not case keyword
     # Note: '?' in Rust is the error propagation operator, not ternary
