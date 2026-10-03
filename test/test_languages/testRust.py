@@ -140,3 +140,11 @@ class TestRust(unittest.TestCase):
         # Should be 2: base(1) + match(1) = 2
         # The || in match arms (1 | 2) is pattern matching, not logical operator
         self.assertEqual(2, result[0].cyclomatic_complexity)
+
+    def test_parameter_of_function_type(self):
+        result = get_rust_function_list('''
+        fn first(list: &[i32], less: impl Fn(i32, i32) -> bool) -> i32 {
+            list[0]
+        }
+        ''')
+        self.assertEqual(2, result[0].parameter_count)
