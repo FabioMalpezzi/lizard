@@ -434,3 +434,50 @@ class TestRust(unittest.TestCase):
         }
         ''')
         self.assertEqual(25, result[0].token_count)
+
+    def test_match_with_a_block_in_its_subject(self):
+        result = get_rust_function_list("""
+            fn a(x: i32) -> i32 {
+                match unsafe { get(x) } {
+                    0 => 0,
+                    _ => 1,
+                }
+            }
+            fn b(x: i32) -> i32 {
+                match if x > 0 { 1 } else { 2 } {
+                    1 => 10,
+                    2 => 20,
+                    _ => 30,
+                }
+            }
+            fn c(x: i32) -> i32 {
+                match (if x > 0 { 1 } else { 2 }) {
+                    1 => 10,
+                    _ => 30,
+                }
+            }
+        """)
+        self.assertEqual(['a', 'b', 'c'], [f.name for f in result])
+        self.assertEqual(2, result[0].cyclomatic_complexity)
+        # 1, the "if" and two arms after the first
+        self.assertEqual(4, result[1].cyclomatic_complexity)
+        self.assertEqual(3, result[2].cyclomatic_complexity)
+
+    def test_match_without_braces_in_a_macro(self):
+        result = get_rust_function_list("""
+            fn generate() -> TokenStream {
+                quote! {
+                    $path(#(match #args #match_body),*)
+                }
+            }
+            fn after(x: i32) -> i32 {
+                if x > 0 { 1 } else { 0 }
+            }
+            fn rule() -> TokenStream {
+                quote! { match #value #arms; }
+            }
+            fn last() {}
+        """)
+        self.assertEqual(['generate', 'after', 'rule', 'last'],
+                         [f.name for f in result])
+        self.assertEqual(2, result[1].cyclomatic_complexity)
