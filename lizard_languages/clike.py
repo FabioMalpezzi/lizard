@@ -70,7 +70,12 @@ class CppRValueRefStates(CodeStateMachine):
 
     def _state_global(self, token):
         if token == "&&":
-            self.next(self._r_value_ref)
+            if self.last_token == "auto":
+                # "auto&&" is always a reference, also where no "=" follows:
+                # for (auto&& x : list)
+                self.context.add_condition(-1)
+            else:
+                self.next(self._r_value_ref)
         elif token == "typedef":
             self.next(self._typedef)
 

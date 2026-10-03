@@ -907,3 +907,22 @@ class Test_cpp_raw_string_literals(unittest.TestCase):
         self.assertEqual("b", result[1].name)
         self.assertEqual(5, result[1].start_line)
         self.assertEqual(8, result[1].end_line)
+
+class Test_forwarding_reference(unittest.TestCase):
+
+    def test_auto_rvalue_reference_in_a_range_for(self):
+        result = get_cpp_function_list("""
+int sum(const std::vector<int>& list) {
+  int n = 0;
+  for (auto&& x : list) {
+    n += x;
+  }
+  for (const auto && y : list) {
+    n += y;
+  }
+  auto&& t = n;
+  return n > 0 && t > 0 ? n : 0;
+}
+""")
+        # 1, two "for", the "&&" and the "?" of the last line
+        self.assertEqual(5, result[0].cyclomatic_complexity)
