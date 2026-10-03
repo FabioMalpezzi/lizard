@@ -182,3 +182,18 @@ public void test() {
         result = get_java_function_list(code)
         self.assertEqual(1, len(result))
         self.assertEqual("test", result[0].name)
+
+    def test_wildcard_of_a_nested_generic_type_is_not_a_decision(self):
+        result = get_java_function_list("""
+class A {
+  int total(Map<String, ? extends List<Integer>> map) {
+    int t = 0;
+    for (Map.Entry<String, ? extends List<Integer>> e : map.entrySet()) {
+      List<? super Map<String, Integer>> other = null;
+      t += e.getValue().size();
+    }
+    return t > 0 ? t : 0;
+  }
+}
+""")
+        self.assertEqual(3, result[0].cyclomatic_complexity)
