@@ -236,3 +236,24 @@ enum Level {
 """)
         self.assertEqual(['Level::Level', 'Level::value'],
                          [f.name for f in result])
+
+    def test_method_of_the_outer_class_after_an_inner_class(self):
+        result = get_java_function_list("""
+class Outer {
+  int before(int a) {
+    return a;
+  }
+
+  class Inner {
+    int inside(int a) {
+      return a;
+    }
+  }
+
+  int after(int a) {
+    return a;
+  }
+}
+""")
+        self.assertEqual(['Outer::before', 'Inner::inside', 'Outer::after'],
+                         [f.name for f in result])
