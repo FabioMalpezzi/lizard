@@ -213,3 +213,33 @@ class TestRust(unittest.TestCase):
         }
         ''')
         self.assertEqual(3, result[0].cyclomatic_complexity)
+
+    def test_char_literal_of_one_letter(self):
+        result = get_rust_function_list('''
+        fn is_a(c: char) -> u8 {
+            if c == 'a' {
+                return 1;
+            }
+            2
+        }
+
+        fn is_b(c: char) -> u8 {
+            if c == 'b' { 3 } else { 4 }
+        }
+        ''')
+        self.assertEqual(['is_a', 'is_b'], [f.name for f in result])
+        self.assertEqual(7, result[0].end_line)
+        self.assertEqual(2, result[1].cyclomatic_complexity)
+
+    def test_lifetime_is_not_a_char_literal(self):
+        result = get_rust_function_list('''
+        fn pick<'a>(a: &'a str, b: &'a str) -> &'a str {
+            'outer: loop {
+                break 'outer;
+            }
+            if a.len() > b.len() { a } else { b }
+        }
+        ''')
+        self.assertEqual(['pick'], [f.name for f in result])
+        self.assertEqual(2, result[0].parameter_count)
+        self.assertEqual(7, result[0].end_line)
