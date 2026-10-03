@@ -679,6 +679,44 @@ class TestGoNestedStructures(unittest.TestCase):
             }
             """))
 
+    def test_for_over_a_composite_literal(self):
+        self.assertEqual([('table', 2), ('sizes', 2)], self.nested_structures("""
+            func table(t *testing.T) {
+                for _, tt := range []struct {
+                    name string
+                    ok   bool
+                }{
+                    {"a", true},
+                    {"b", false},
+                } {
+                    if tt.ok {
+                        t.Log(tt.name)
+                    }
+                }
+            }
+
+            func sizes(m map[string][]pkg.Size) int {
+                for _, n := range []int{1, 2} {
+                    for _, s := range m[key(n)] {
+                        return s.n
+                    }
+                }
+                return 0
+            }
+            """))
+
+    def test_do_and_try_are_names(self):
+        self.assertEqual([('do', 0), ('run', 1)], self.nested_structures("""
+            func do(b int) {}
+
+            func run(c *Client) int {
+                if c.try() {
+                    return c.do(1)
+                }
+                return 0
+            }
+            """))
+
 
 class TestRustNestedStructures(unittest.TestCase):
 
