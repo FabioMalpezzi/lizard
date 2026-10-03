@@ -83,8 +83,17 @@ class GoLikeStates(CodeStateMachine):  # pylint: disable=R0903
             self.context.parameter(token)
 
     def _expect_function_impl(self, token):
-        if token == '{' and self.last_token != 'interface':
-            self.next(self._function_impl, token)
+        if token == '{':
+            if self.last_token in ('interface', 'struct'):
+                # A result type written with braces, as in Go
+                # "func f() map[string]struct{} {": not the body.
+                self.next(self._result_type_braces, token)
+            else:
+                self.next(self._function_impl, token)
+
+    @CodeStateMachine.read_inside_brackets_then("{}", "_expect_function_impl")
+    def _result_type_braces(self, _):
+        pass
 
     def _function_impl(self, _):
         def callback():
