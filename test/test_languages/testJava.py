@@ -236,3 +236,19 @@ enum Level {
 """)
         self.assertEqual(['Level::Level', 'Level::value'],
                          [f.name for f in result])
+
+    def test_method_after_annotation_with_a_default_value(self):
+        result = get_java_function_list("""
+@interface Mark {
+  String value() default "x";
+  int[] sizes() default {1, 2};
+}
+
+class After {
+  int afterMark(int a) {
+    return a;
+  }
+}
+""")
+        self.assertEqual(['After::afterMark'], [f.name for f in result])
+        self.assertEqual((8, 10), (result[0].start_line, result[0].end_line))
