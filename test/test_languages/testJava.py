@@ -273,3 +273,18 @@ class Outer {
 """)
         self.assertEqual(['Outer::before', 'Inner::inside', 'Outer::after'],
                          [f.name for f in result])
+
+    def test_wildcard_of_a_nested_generic_type_is_not_a_decision(self):
+        result = get_java_function_list("""
+class A {
+  int total(Map<String, ? extends List<Integer>> map) {
+    int t = 0;
+    for (Map.Entry<String, ? extends List<Integer>> e : map.entrySet()) {
+      List<? super Map<String, Integer>> other = null;
+      t += e.getValue().size();
+    }
+    return t > 0 ? t : 0;
+  }
+}
+""")
+        self.assertEqual(3, result[0].cyclomatic_complexity)
