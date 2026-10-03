@@ -55,7 +55,17 @@ class JavaReader(CLikeReader):
         super(JavaReader, self).__init__(context)
         self.parallel_states = [
                 JavaStates(context),
-                CLikeNestingStackStates(context)]
+                CLikeNestingStackStates(context),
+                JavaWildcardStates(context)]
+
+
+class JavaWildcardStates(CodeStateMachine):  # pylint: disable=R0903
+    """The "?" that opens a type argument, as in "Map<String, ? extends
+    List<Integer>>", is a wildcard, not the conditional operator."""
+
+    def _state_global(self, token):
+        if token == '?' and self.last_token in ('<', ','):
+            self.context.add_condition(-1)
 
 
 class JavaStates(CLikeStates):  # pylint: disable=R0903
