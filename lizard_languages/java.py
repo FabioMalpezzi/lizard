@@ -91,6 +91,18 @@ class JavaStates(CLikeStates):  # pylint: disable=R0903
         if token == '{':
             self._state_dec_to_imp(token)
 
+    def _state_dec_to_imp(self, token):
+        if token == 'default':
+            # Element of an annotation type with a default value:
+            # "String value() default "x";" is a declaration without a body.
+            self._state = self._state_annotation_default
+        else:
+            super(JavaStates, self)._state_dec_to_imp(token)
+
+    @CodeStateMachine.read_until_then(';')
+    def _state_annotation_default(self, _, __):
+        self._state = self._state_global
+
     def _state_imp(self, token):
         # When entering a function implementation, set the flag
         self.in_method_body = True
