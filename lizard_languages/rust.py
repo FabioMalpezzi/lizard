@@ -81,11 +81,18 @@ def _end_of_block_comment(source_code, start):
 class RustStates(GoLikeStates):  # pylint: disable=R0903
     FUNC_KEYWORD = 'fn'
 
+    # a "{" after one of these opens a block that is part of an expression
+    _BLOCK_KEYWORDS = ('unsafe', 'else', 'loop', 'async', 'move', 'const',
+                       '!')
+    # each of these is followed by an expression and then by a block
+    _KEYWORDS_BEFORE_BLOCK = ('if', 'while', 'for', 'match')
+
     def __init__(self, context, in_match_arms=False):
         super().__init__(context)
         self._in_match_arms = in_match_arms
         self._seen_match_arm = False
         self._match_subject_nesting = 0
+        self._match_subject_blocks = 0
 
     def _state_global(self, token):
         if token == '=>':
@@ -96,23 +103,37 @@ class RustStates(GoLikeStates):  # pylint: disable=R0903
             return
         if token == 'match':
             self._match_subject_nesting = 0
+            self._match_subject_blocks = 0
             self._state = self._match_subject
             return
         super()._state_global(token)
 
     def _match_subject(self, token):
-        if token in '([':
+        if token in ('(', '['):
             self._match_subject_nesting += 1
-            return
-        if token in ')]':
-            if self._match_subject_nesting:
-                self._match_subject_nesting -= 1
-            return
-        if token != '{' or self._match_subject_nesting:
-            return
-        self.sub_state(
-            RustStates(self.context, in_match_arms=True),
-            self._end_match)
+        elif token in (')', ']', '}', ';') and not self._match_subject_nesting:
+            # No arms: a "match" between the tokens of a macro, as in
+            # quote! { f(#(match #args #body),*) }
+            self.next(self._state_global, token)
+        elif token in (')', ']', '}'):
+            self._match_subject_nesting -= 1
+        elif token == '{':
+            if self._match_subject_nesting or \
+                    self.last_token in self._BLOCK_KEYWORDS:
+                # a block inside the subject: match unsafe { f() } { .. }
+                self._match_subject_nesting += 1
+            elif self._match_subject_blocks:
+                # the block of an "if" of the subject:
+                # match if a { 1 } else { 2 } { .. }
+                self._match_subject_blocks -= 1
+                self._match_subject_nesting += 1
+            else:
+                self.sub_state(
+                    RustStates(self.context, in_match_arms=True),
+                    self._end_match)
+        elif token in self._KEYWORDS_BEFORE_BLOCK and \
+                not self._match_subject_nesting:
+            self._match_subject_blocks += 1
 
     def _end_match(self):
         self.next(self._state_global)
