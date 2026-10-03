@@ -239,3 +239,9 @@ class Test_parser_for_Go(unittest.TestCase):
             }
                 ''')
         self.assertEqual(2, result[0].parameter_count)
+
+    def test_receive_operator_is_one_token(self):
+        result = get_go_function_list('''
+            func next(c <-chan int) int { return <-c }
+                ''')
+        self.assertEqual(14, result[0].token_count)
