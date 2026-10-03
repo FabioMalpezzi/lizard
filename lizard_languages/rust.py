@@ -26,7 +26,8 @@ class RustReader(CodeReader, CCppCommentsMixin):
 
     @staticmethod
     def generate_tokens(source_code, addition='', token_class=None):
-        addition = r"|(?:'\w+\b)"  # lifetimes, labels
+        # lifetimes, labels; with a closing quote it is a char literal: 'a'
+        addition = r"|(?:'\w+\b(?!'))"
         return CodeReader.generate_tokens(source_code, addition, token_class)
 
 
