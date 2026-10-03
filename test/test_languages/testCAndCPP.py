@@ -675,6 +675,85 @@ int mySecondFunction()
                         "Function should end at line 6")
 
 
+    def test_brace_opened_in_both_branches_of_ifdef(self):
+        result = get_cpp_function_list("""
+int a(int x) {
+#ifdef A
+  if (x > 3) {
+#else
+  if (x > 5) {
+#endif
+    x = 3;
+  }
+  return x;
+}
+
+int b(int x) {
+  return x;
+}
+""")
+        self.assertEqual(['a', 'b'], [f.name for f in result])
+        self.assertEqual((2, 11), (result[0].start_line, result[0].end_line))
+        self.assertEqual((13, 15), (result[1].start_line, result[1].end_line))
+
+    def test_brace_opened_in_three_branches(self):
+        result = get_cpp_function_list("""
+int a(int x) {
+#if defined(A)
+  if (x > 3) {
+#elif defined(B)
+  if (x > 4) {
+#else
+  if (x > 5) {
+#endif
+    x = 3;
+  }
+  return x;
+}
+int b(int x) { return x; }
+""")
+        self.assertEqual(['a', 'b'], [f.name for f in result])
+        self.assertEqual(13, result[0].end_line)
+
+    def test_parenthesis_opened_in_both_branches_of_ifdef(self):
+        result = get_cpp_function_list("""
+int a(int x, int y) {
+#ifdef A
+  if (x > 3 &&
+#else
+  if (x > 5 &&
+#endif
+      y > 0) {
+    return 1;
+  }
+  return 0;
+}
+int b(int x) { return x; }
+""")
+        self.assertEqual(['a', 'b'], [f.name for f in result])
+        # 1, the #ifdef, the "if" and the "&&" of the first branch
+        self.assertEqual(4, result[0].cyclomatic_complexity)
+
+    def test_balanced_branches_of_ifdef_are_both_read(self):
+        result = get_cpp_function_list("""
+#ifdef A
+int f() { return 1; }
+#else
+int g() { return 2; }
+#endif
+int h(int x) {
+#ifdef A
+  if (x > 3) { x = 3; }
+#else
+  if (x > 5) { x = 5; }
+#endif
+  return x;
+}
+""")
+        self.assertEqual(['f', 'g', 'h'], [f.name for f in result])
+        self.assertEqual(4, result[2].cyclomatic_complexity)
+
+
 class Test_Big(unittest.TestCase):
 
     def test_trouble(self):
