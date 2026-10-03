@@ -54,6 +54,7 @@ class CLikeReader(CodeReader, CCppCommentsMixin):
                 tilde = True
             elif tilde:
                 tilde = False
+                branches.count(token)
                 yield "~" + token
             elif not token.isspace() or token == '\n':
                 macro = self.macro_pattern.match(token)
