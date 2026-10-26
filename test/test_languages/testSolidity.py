@@ -45,3 +45,14 @@ class TestSolidity(unittest.TestCase):
         )
         self.assertEqual(1, len(result))
         self.assertEqual('named', result[0].name)
+
+    def test_parameter_of_function_type(self):
+        result = get_solidity_function_list('''
+            contract A {
+                function apply(uint a, function (uint, uint) pure returns (uint) f, uint b) internal pure returns (uint) {
+                    return f(a, b);
+                }
+            }
+            ''')
+        self.assertEqual(3, result[0].parameter_count)
+        self.assertEqual(['a', 'f', 'b'], result[0].parameters)
