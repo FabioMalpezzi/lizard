@@ -251,3 +251,16 @@ class TestRust(unittest.TestCase):
         }
         ''')
         self.assertEqual(2, result[0].parameter_count)
+
+    def test_parameter_with_generic_arguments_or_a_pattern(self):
+        result = get_rust_function_list('''
+        fn from(item: HashMap<K, V, RandomState>, sizes: [u8; 4]) -> Self {
+            item
+        }
+
+        fn add((ax, ay): Point<Fe>, b: Fe) -> Fe {
+            ax
+        }
+        ''')
+        self.assertEqual(2, result[0].parameter_count)
+        self.assertEqual(2, result[1].parameter_count)

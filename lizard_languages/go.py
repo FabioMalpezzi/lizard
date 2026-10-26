@@ -52,6 +52,8 @@ class GoReader(CodeReader, CCppCommentsMixin):
 class GoStates(GoLikeStates):  # pylint: disable=R0903
     """Distinguish declarations, literals and function types before opening one."""
 
+    PARAMETER_BRACKETS = {'[': ']', '{': '}'}
+
     def _state_global(self, token):
         if token == 'func':
             self._start_function(token)
