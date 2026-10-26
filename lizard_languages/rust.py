@@ -42,6 +42,7 @@ class RustStates(GoLikeStates):  # pylint: disable=R0903
         self._if_body_depths = []
         self._else_pending = False
         self._paren_depth = 0
+        self._result_brackets = 0
 
     def _state_global(self, token):
         if token == '=>':
@@ -56,7 +57,43 @@ class RustStates(GoLikeStates):  # pylint: disable=R0903
             return
         if self._count_let_else(token):
             return
+        if token == self.FUNC_KEYWORD:
+            self._result_brackets = 0
         super()._state_global(token)
+
+    def _function_name(self, token):
+        if token == '(':
+            # "fn(i32) -> i32" is the type of a field or a variable: a
+            # function pointer, without a name and without a body.
+            self._forget_function()
+            self.next(self._state_global, token)
+        else:
+            super()._function_name(token)
+
+    def _expect_function_impl(self, token):
+        if token in ('(', '['):
+            self._result_brackets += 1
+        elif token in (')', ']'):
+            self._result_brackets -= 1
+        elif token in (';', '}') and not self._result_brackets:
+            # A declaration without a body, as in a trait:
+            # "fn area(&self) -> f64;"
+            self._forget_function()
+            self.next(self._state_global, token)
+            return
+        super()._expect_function_impl(token)
+
+    def _forget_function(self):
+        """What was counted for a function that has no body belongs to
+        the function around it."""
+        without_body = self.context.current_function
+        around = self.context.stacked_functions.pop()
+        # A new function starts with its first token and line counted.
+        around.token_count += without_body.token_count - 1
+        around.nloc += without_body.nloc - 1
+        around.cyclomatic_complexity += without_body.cyclomatic_complexity - 1
+        around.end_line = max(around.end_line, without_body.end_line)
+        self.context.current_function = around
 
     def _count_let_else(self, token):
         """Count `let ... else`. The `else` of an `if` is not another condition.
