@@ -14,7 +14,7 @@ try:
     here = os.path.dirname(os.path.abspath(__file__))
     version = '0.0.0'
     changes = os.path.join(here, "CHANGELOG.md")
-    pattern = r'^\#*\s*(?P<version>[0-9]+.[0-9]+(.[0-9]+)?)'
+    pattern = r'^\#*\s*(?P<version>[0-9]+.[0-9]+(.[0-9]+)?(\+[0-9A-Za-z.]+)?)'
     with codecs.open(changes, encoding='utf-8') as changes:
         for line in changes:
             match = re.match(pattern, line)

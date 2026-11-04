@@ -1,5 +1,18 @@
 # Change Log
 
+## 1.25.0+senso.1
+
+First Senso build of 1.25.0: the official 1.25.0 with the fixes not yet in a
+release. Python: the inline functions and suite boundaries of PR #530 (by
+another author). JavaScript and TypeScript, proposed upstream as PRs #551 to
+#554: class methods with `async`, `static` or `get` after a field without `;`;
+a generic function declaration; the optional marker of a quoted member; a
+member named like a structure (`p.catch`) counted as nesting (-ENS). Go, Rust,
+Java, C and C++, nesting and duplicates: the fixes of 1.24.0+senso.5 not yet
+proposed upstream (branches rebuild/13 to rebuild/29), merged onto 1.25.0.
+It also carries the commits of master after 1.25.0 up to 1119db8, the base of
+PRs #551 to #554.
+
 ## 1.25.0
 
 ### New Features
