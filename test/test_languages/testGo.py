@@ -246,3 +246,63 @@ class Test_parser_for_Go(unittest.TestCase):
             }
                 ''')
         self.assertEqual(3, result[0].parameter_count)
+
+    def test_receive_operator_is_one_token(self):
+        result = get_go_function_list('''
+            func next(c <-chan int) int { return <-c }
+                ''')
+        self.assertEqual(14, result[0].token_count)
+
+    def test_shift_and_bit_clear_operators_are_one_token(self):
+        result = get_go_function_list('''
+            func mask(a uint, n uint) uint {
+                a <<= 1
+                return (a << n) >> 2 &^ 1
+            }
+                ''')
+        self.assertEqual(25, result[0].token_count)
+
+    def test_catch_and_while_are_names(self):
+        result = get_go_function_list('''
+            func check(t *testing.T, while bool) {
+                catch := func() {
+                    recover()
+                }
+                defer catch()
+                t.Log(while)
+            }
+                ''')
+        self.assertEqual(["anonymous__0", "check"], [f.name for f in result])
+        self.assertEqual(1, result[1].cyclomatic_complexity)
+
+    def test_compound_assignments_are_one_token(self):
+        result = get_go_function_list('''
+            func scale(a int) int {
+                a *= 2
+                a /= 3
+                a %= 5
+                return a
+            }
+                ''')
+        self.assertEqual(20, result[0].token_count)
+
+    def test_float_literal_is_one_token(self):
+        result = get_go_function_list('''
+            func half() float64 {
+                return 1.5
+            }
+            func sum(v []float64) (float64, complex128) {
+                z := 0x1p-2 + 1e3 + .5 + 1_0.2_5 + 2i + 1e-3 + 2.5e+3i
+                return z + v[0].Real(), 1.
+            }
+                ''')
+        self.assertEqual(9, result[0].token_count)
+        self.assertEqual(43, result[1].token_count)
+
+    def test_pointer_to_pointer_is_two_tokens(self):
+        result = get_go_function_list('''
+            func deref(p **int) int {
+                return **p
+            }
+                ''')
+        self.assertEqual(15, result[0].token_count)
