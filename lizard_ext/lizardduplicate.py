@@ -114,7 +114,7 @@ class DuplicateFinder(object):
         for i, same in enumerate(self.hashed_node_indice.values()):
             if i in self.boundaries:
                 scope = InvolvingScope(self.boundaries, self._keyfunc)
-            before_same = set(n - self.sample_size for n in same)
+            before_same = set(self._before_in_the_same_file(same))
             for dup in scope.same_beginning(
                     same, before_same):
                 token_count = len(dup) * \
@@ -122,9 +122,27 @@ class DuplicateFinder(object):
                 if token_count >= self.min_duplicate_tokens:
                     self._add_duplicate_ranges(dup)
                     yield dup
+        # A copy that ends with the file covers one token more than the
+        # tokens that duplicate_rate counts for the file.
         self.duplicate_token_count = sum(
-            self._merged_token_count(intervals)
-            for intervals in self.covered_duplicates.values())
+            min(self._merged_token_count(intervals),
+                self._token_count(boundary_index))
+            for boundary_index, intervals in self.covered_duplicates.items())
+
+    def _token_count(self, boundary_index):
+        """The tokens of a file, as duplicate_rate counts them."""
+        return (self.sorted_boundaries[boundary_index + 1] -
+                self.sorted_boundaries[boundary_index] +
+                self.sample_size - 2)
+
+    def _before_in_the_same_file(self, same):
+        """The node one sample before each of the nodes, where it is in
+        the same file: the end of the file before is not before a
+        duplicate that starts in this one."""
+        for node in same:
+            before = node - self.sample_size
+            if before >= self.sorted_boundaries[self._boundary_index(node)]:
+                yield before
 
     def _add_duplicate_ranges(self, dup):
         for start, end in dup:
