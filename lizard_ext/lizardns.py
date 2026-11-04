@@ -198,6 +198,14 @@ class LizardExtension(ExtensionBase):  # pylint: disable=R0903
                 self._state = self._in_head_up_to_brace
             else:
                 self._state = self._in_structure_head
+        elif token in ('.', '?.'):
+            self._state = self._member_name
+
+    def _member_name(self, token):
+        """A member named like a structure, promise.catch(f), is not one."""
+        self._state = self._state_global
+        if token not in self._structures:
+            self._state(token)
 
     def _in_head_up_to_brace(self, token):
         """Go: "for i := 0; i < n; i++ {" and "if v, ok := m[k]; ok {".
