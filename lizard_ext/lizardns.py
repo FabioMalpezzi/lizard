@@ -70,6 +70,7 @@ class LizardExtension(ExtensionBase):  # pylint: disable=R0903
         self.structure_piles = [0]  # Invariant: must always have at least one element
 
     def __call__(self, tokens, reader=None):
+        self._start_file()
         if 'python' in getattr(reader, 'language_names', ()):
             return self._indented_structures(tokens, reader)
         return super(LizardExtension, self).__call__(tokens, reader)
@@ -120,6 +121,13 @@ class LizardExtension(ExtensionBase):  # pylint: disable=R0903
         levels.append(level)
         if function.max_nested_structures < len(levels):
             function.max_nested_structures = len(levels)
+
+    def _start_file(self):
+        """A file that ends inside a block or inside the head of a structure
+        must not leave its state to the next file of the same run."""
+        self.structure_piles = [0]
+        self.br_count = 0
+        self._state = self._state_global
 
     def _push_scope(self):
         """Push a new scope level. Safe to call anytime."""
