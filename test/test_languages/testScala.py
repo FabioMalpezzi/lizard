@@ -155,3 +155,14 @@ class TestScala(unittest.TestCase):
                 ''')
         names = sorted(f.name for f in result)
         self.assertEqual(["after", "generic", "plain"], names)
+
+    def test_parameter_of_function_type(self):
+        result = get_scala_function_list('''
+            object A {
+              def sorted(items: List[Int], less: (Int, Int) => Boolean, limit: Int): List[Int] = {
+                items
+              }
+            }
+            ''')
+        self.assertEqual(3, result[0].parameter_count)
+        self.assertEqual(['items', 'less', 'limit'], result[0].parameters)

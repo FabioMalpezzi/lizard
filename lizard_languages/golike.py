@@ -9,6 +9,10 @@ class GoLikeStates(CodeStateMachine):  # pylint: disable=R0903
 
     FUNC_KEYWORD = 'func'
     TYPE_KEYWORD = 'type'
+    # The brackets, besides parentheses, that in the type of a parameter
+    # can hold commas: what is inside them is no parameter of the function.
+    PARAMETER_BRACKETS = {}
+    _parameter_brackets = 0
 
     def _state_global(self, token):
         if token == self.FUNC_KEYWORD:
@@ -80,7 +84,21 @@ class GoLikeStates(CodeStateMachine):  # pylint: disable=R0903
 
     @CodeStateMachine.read_inside_brackets_then("()", '_expect_function_impl')
     def _function_dec(self, token):
-        if token not in '()':
+        # The parentheses of a parameter of function type, as in Go
+        # "less func(a, b int) bool", hold no parameters of this function.
+        if token in '()':
+            if token == '(' and self.br_count == 1:
+                self._parameter_brackets = 0
+            return
+        nested = self.br_count > 1 or self._parameter_brackets > 0
+        if token in self.PARAMETER_BRACKETS:
+            self._parameter_brackets += 1
+            nested = True
+        elif nested and token in self.PARAMETER_BRACKETS.values():
+            self._parameter_brackets = max(self._parameter_brackets - 1, 0)
+        if nested:
+            self.context.add_to_long_function_name(" " + token)
+        else:
             self.context.parameter(token)
 
     def _expect_function_impl(self, token):

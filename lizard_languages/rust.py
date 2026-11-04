@@ -32,6 +32,7 @@ class RustReader(CodeReader, CCppCommentsMixin):
 
 class RustStates(GoLikeStates):  # pylint: disable=R0903
     FUNC_KEYWORD = 'fn'
+    PARAMETER_BRACKETS = {'[': ']', '{': '}', '<': '>'}
 
     def __init__(self, context, in_match_arms=False):
         super().__init__(context)
