@@ -217,3 +217,31 @@ class TestCsharp(unittest.TestCase):
         add_func = next(f for f in result if f.name == "SimpleCalculator::Add")
         self.assertEqual(1, add_func.cyclomatic_complexity,
                         "Expression-bodied Add method should have complexity of 1")
+
+
+class TestCsharpPreprocessor(unittest.TestCase):
+
+    def test_parenthesis_after_a_tilde_in_a_branch_of_if(self):
+        result = get_csharp_function_list("""
+class C {
+    int F(int mode, int x) {
+#if WINDOWS
+        mode &= ~(1 | 2);
+#else
+        if (x > 0 && mode > 0) {
+            while (x > 0) { x--; }
+        }
+#endif
+        return mode;
+    }
+#if NET8
+    int Only8(int m) { return m & ~(4); }
+#else
+    int Legacy(int m) { if (m > 0) { return 1; } return 0; }
+#endif
+}
+""")
+        self.assertEqual(['C::F', 'C::Only8', 'C::Legacy'],
+                         [f.name for f in result])
+        # 1, the #if, "if", "&&" and "while"
+        self.assertEqual(5, result[0].cyclomatic_complexity)
