@@ -272,3 +272,187 @@ class TestNestedStructuresOfTheNextFile(unittest.TestCase):
     def test_file_after_a_file_that_ends_inside_a_block(self):
         self.nested_structures("a.c", "int broken(int a) { if (a) { while (a) { for (;;) {")
         self.assertEqual([('nested', 3)], self.nested_structures("b.c", self.NESTED))
+
+
+class TestGoNestedStructures(unittest.TestCase):
+
+    def nested_structures(self, code):
+        analyzer = FileAnalyzer(get_extensions([NestedStructure()]))
+        functions = analyzer.analyze_source_code("a.go", code).function_list
+        return [(f.name, f.max_nested_structures) for f in functions]
+
+    def test_for_with_three_clauses(self):
+        self.assertEqual([('sum', 2)], self.nested_structures("""
+            func sum(n int) int {
+                total := 0
+                for i := 0; i < n; i++ {
+                    if i%2 == 0 {
+                        total += i
+                    }
+                }
+                return total
+            }
+            """))
+
+    def test_if_with_an_initial_statement(self):
+        self.assertEqual([('first', 2)], self.nested_structures("""
+            func first(m map[string]int) int {
+                if v, ok := m["a"]; ok {
+                    for v > 10 {
+                        v--
+                    }
+                    return v
+                }
+                return 0
+            }
+            """))
+
+    def test_switch_with_an_initial_statement(self):
+        self.assertEqual([('kind', 2)], self.nested_structures("""
+            func kind(a int) int {
+                switch b := a * 2; {
+                case b > 10:
+                    if a > 7 {
+                        return 2
+                    }
+                }
+                return 0
+            }
+            """))
+
+    def test_select_is_a_structure(self):
+        self.assertEqual([('drain', 2)], self.nested_structures("""
+            func drain(data <-chan int, done <-chan bool) int {
+                total := 0
+                for {
+                    select {
+                    case v := <-data:
+                        total += v
+                    case <-done:
+                        return total
+                    }
+                }
+            }
+            """))
+
+    def test_structures_after_a_for_with_three_clauses(self):
+        self.assertEqual([('twice', 1)], self.nested_structures("""
+            func twice(n int) int {
+                total := 0
+                for i := 0; i < n; i++ {
+                    total += i
+                }
+                if total > 10 {
+                    total = 10
+                } else {
+                    total = 0
+                }
+                return total
+            }
+            """))
+
+    def test_for_over_a_composite_literal(self):
+        self.assertEqual([('table', 2), ('sizes', 2)], self.nested_structures("""
+            func table(t *testing.T) {
+                for _, tt := range []struct {
+                    name string
+                    ok   bool
+                }{
+                    {"a", true},
+                    {"b", false},
+                } {
+                    if tt.ok {
+                        t.Log(tt.name)
+                    }
+                }
+            }
+
+            func sizes(m map[string][]pkg.Size) int {
+                for _, n := range []int{1, 2} {
+                    for _, s := range m[key(n)] {
+                        return s.n
+                    }
+                }
+                return 0
+            }
+            """))
+
+    def test_composite_literal_inside_square_brackets_in_a_head(self):
+        self.assertEqual([('dirty', 3), ('send', 2)], self.nested_structures("""
+            func dirty(f *file, mod string, h string) int {
+                for _, m := range f.mods {
+                    if !f.status[modSum{mod, h}].dirty {
+                        for mod != h {
+                            return 1
+                        }
+                    }
+                }
+                return 0
+            }
+            func send(c chan int, a []int) {
+                for ; ; c <- a[S{}.i] {
+                    if len(a) > 3 {
+                        return
+                    }
+                }
+            }
+            """))
+
+    def test_do_and_try_are_names(self):
+        self.assertEqual([('do', 0), ('run', 1)], self.nested_structures("""
+            func do(b int) {}
+
+            func run(c *Client) int {
+                if c.try() {
+                    return c.do(1)
+                }
+                return 0
+            }
+            """))
+
+
+class TestRustNestedStructures(unittest.TestCase):
+
+    def nested_structures(self, code):
+        analyzer = FileAnalyzer(get_extensions([NestedStructure()]))
+        functions = analyzer.analyze_source_code("a.rs", code).function_list
+        return [(f.name, f.max_nested_structures) for f in functions]
+
+    def test_match_is_a_structure_and_its_arms_are_not(self):
+        self.assertEqual([('name', 1)], self.nested_structures("""
+            fn name(x: i32) -> &'static str {
+                match x {
+                    1 => "one",
+                    2 | 3 => "few",
+                    _ => "many",
+                }
+            }
+            """))
+
+    def test_loop_is_a_structure(self):
+        self.assertEqual([('count', 3)], self.nested_structures("""
+            fn count(n: i32) -> i32 {
+                let mut total = 0;
+                'outer: loop {
+                    for i in 0..n {
+                        if total > 100 {
+                            break 'outer;
+                        }
+                        total += i + 1;
+                    }
+                }
+                total
+            }
+            """))
+
+    def test_structure_inside_a_match_arm(self):
+        self.assertEqual([('pick', 2)], self.nested_structures("""
+            fn pick(x: Option<i32>) -> i32 {
+                match x {
+                    Some(v) => {
+                        if v > 0 { v } else { 0 }
+                    }
+                    None => 0,
+                }
+            }
+            """))
