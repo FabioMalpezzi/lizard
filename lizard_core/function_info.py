@@ -6,7 +6,8 @@ import re
 import itertools
 
 
-_PARAMETER_NAME = re.compile(r'([\w$]+)(\s=.*)?(\s:.*)?$')
+_PARAMETER_NAME = re.compile(
+    r'([\w$]+)(\s\[[^\[\]]*\])*(\s=.*)?(\s:.*)?$')
 
 
 class Nesting(object):  # pylint: disable=R0903
@@ -79,6 +80,7 @@ class FunctionInfo(Nesting):  # pylint: disable=R0902
         # allowing a trailing comma on the last parameter in an function
         # argument list.
         # Regex matches the parameter name, then optionally:
+        # - the brackets of a C style array, as in "char * argv [ ]"
         # - a default value given after an '=' sign
         # - a type annotation given after a ':'
         matches = map(_PARAMETER_NAME.search, self.full_parameters)
