@@ -26,8 +26,56 @@ class RustReader(CodeReader, CCppCommentsMixin):
 
     @staticmethod
     def generate_tokens(source_code, addition='', token_class=None):
-        addition = r"|(?:'\w+\b)"  # lifetimes, labels
-        return CodeReader.generate_tokens(source_code, addition, token_class)
+        # lifetimes, labels; with a closing quote it is a char literal: 'a'
+        addition = r"|(?:'\w+\b(?!'))"
+        # raw strings r"..", r#".."#, with up to three "#", and r#name
+        addition += r'|b?r"[^"]*"' + ''.join(
+            r'|b?r%s"(?:[^"]|"(?!%s))*"%s' % (hashes, hashes, hashes)
+            for hashes in ('###', '##', '#')) + r"|r\#\w+"
+        addition += r"|\.\.\.|\.\.=|\.\."  # ranges: one token each
+        addition += r"|\d\w*\.\d\w*(?:[eE][-+]?\d\w*)?"  # 1.5, 2.0e-3, 1.0f64
+        addition += r"|\*=|/=|%="
+        while source_code:
+            offset = 0
+            rest = ''
+            for token in CodeReader.generate_tokens(
+                    source_code, addition, token_class):
+                if token.startswith('/*'):
+                    end = _end_of_block_comment(source_code, offset)
+                    if end != offset + len(token):
+                        # Block comments nest in Rust: the common pattern
+                        # stopped at the first "*/". Give the whole comment
+                        # and read again from its real end.
+                        yield source_code[offset:end]
+                        rest = source_code[end:]
+                        break
+                elif token.startswith('#') and len(token) > 1:
+                    # The common tokenizer reads "#" and the rest of the
+                    # line as a C macro. In Rust "#" starts an attribute,
+                    # or is a token of a macro: read again what follows.
+                    yield '#'
+                    rest = source_code[offset + 1:]
+                    break
+                offset += len(token)
+                yield token
+            source_code = rest
+
+
+def _end_of_block_comment(source_code, start):
+    depth = 0
+    index = start
+    while index < len(source_code):
+        if source_code.startswith('/*', index):
+            depth += 1
+            index += 2
+        elif source_code.startswith('*/', index):
+            depth -= 1
+            index += 2
+            if depth == 0:
+                return index
+        else:
+            index += 1
+    return len(source_code)
 
 
 class RustStates(GoLikeStates):  # pylint: disable=R0903

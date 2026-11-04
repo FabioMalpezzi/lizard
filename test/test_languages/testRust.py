@@ -264,3 +264,139 @@ class TestRust(unittest.TestCase):
         ''')
         self.assertEqual(2, result[0].parameter_count)
         self.assertEqual(2, result[1].parameter_count)
+
+    def test_char_literal_of_one_letter(self):
+        result = get_rust_function_list('''
+        fn is_a(c: char) -> u8 {
+            if c == 'a' {
+                return 1;
+            }
+            2
+        }
+
+        fn is_b(c: char) -> u8 {
+            if c == 'b' { 3 } else { 4 }
+        }
+        ''')
+        self.assertEqual(['is_a', 'is_b'], [f.name for f in result])
+        self.assertEqual(7, result[0].end_line)
+        self.assertEqual(2, result[1].cyclomatic_complexity)
+
+    def test_lifetime_is_not_a_char_literal(self):
+        result = get_rust_function_list('''
+        fn pick<'a>(a: &'a str, b: &'a str) -> &'a str {
+            'outer: loop {
+                break 'outer;
+            }
+            if a.len() > b.len() { a } else { b }
+        }
+        ''')
+        self.assertEqual(['pick'], [f.name for f in result])
+        self.assertEqual(2, result[0].parameter_count)
+        self.assertEqual(7, result[0].end_line)
+
+    def test_nested_block_comment(self):
+        result = get_rust_function_list('''
+        fn positive(a: i32) -> i32 {
+            /* a comment /* nested */ with a brace } */
+            if a > 0 {
+                return a;
+            }
+            0
+        }
+
+        fn after(a: i32) -> i32 {
+            a
+        }
+        ''')
+        self.assertEqual(['positive', 'after'], [f.name for f in result])
+        self.assertEqual(2, result[0].cyclomatic_complexity)
+        self.assertEqual(8, result[0].end_line)
+        self.assertEqual(6, result[0].nloc)
+
+    def test_nested_block_comment_on_many_lines(self):
+        result = get_rust_function_list('''
+        fn one() -> i32 {
+            /* outer
+               /* inner { */
+               still a comment: if x { "
+            */
+            1
+        }
+        ''')
+        self.assertEqual(['one'], [f.name for f in result])
+        self.assertEqual(1, result[0].cyclomatic_complexity)
+        self.assertEqual(8, result[0].end_line)
+        self.assertEqual(3, result[0].nloc)
+
+    def test_range_operator_is_one_token(self):
+        result = get_rust_function_list('''
+        fn sum(n: i32) -> i32 {
+            let mut t = 0;
+            for i in 0..n { t += i; }
+            for i in 0..=n { t += i; }
+            t
+        }
+        ''')
+        self.assertEqual(42, result[0].token_count)
+
+    def test_float_literal_is_one_token(self):
+        result = get_rust_function_list('''
+        fn scale(x: f64) -> f64 {
+            x * 100.0 + 1.5e3 - t.0
+        }
+        ''')
+        self.assertEqual(20, result[0].token_count)
+
+    def test_hash_is_not_the_start_of_a_macro(self):
+        result = get_rust_function_list('''
+        fn parse_outer(input: ParseStream) -> Result<Vec<Self>> {
+            let mut attrs = Vec::new();
+            while input.peek(Token![#]) {
+                attrs.push(input.call(single_parse_outer)?);
+            }
+            Ok(attrs)
+        }
+
+        #[inline] fn one() -> i32 { 1 }
+
+        #[cfg(test)]
+        fn two() -> i32 {
+            #![allow(unused)]
+            2
+        }
+        ''')
+        self.assertEqual(['parse_outer', 'one', 'two'], [f.name for f in result])
+        self.assertEqual(8, result[0].end_line)
+        self.assertEqual(3, result[0].cyclomatic_complexity)
+        self.assertEqual((13, 16), (result[2].start_line, result[2].end_line))
+
+    def test_raw_string_with_quotes(self):
+        result = get_rust_function_list('''
+        fn raw() -> String {
+            check(r#"  "'"  "#, br#"{"#, r"\\");
+            check(r#"  "\""  "#, r#"  "it's"  "#);
+            let r#type = r##"a "# { b"##;
+            String::from(r#"{
+              "key": "it's"
+            }"#)
+        }
+
+        fn after() -> u8 {
+            if b'"' == 34 { 1 } else { 0 }
+        }
+        ''')
+        self.assertEqual(['raw', 'after'], [f.name for f in result])
+        self.assertEqual((2, 9), (result[0].start_line, result[0].end_line))
+        self.assertEqual(2, result[1].cyclomatic_complexity)
+
+    def test_compound_assignments_are_one_token(self):
+        result = get_rust_function_list('''
+        fn scale(mut a: i32) -> i32 {
+            a *= 2;
+            a /= 3;
+            a %= 5;
+            a
+        }
+        ''')
+        self.assertEqual(25, result[0].token_count)
