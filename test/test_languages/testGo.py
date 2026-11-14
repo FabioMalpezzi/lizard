@@ -198,3 +198,36 @@ class Test_parser_for_Go(unittest.TestCase):
         self.assertEqual(1, len(result))
         self.assertEqual("Get", result[0].name)
         self.assertEqual(1, result[0].parameter_count)
+
+    def test_result_type_with_braces(self):
+        result = get_go_function_list('''
+            func set(names []string) map[string]struct{} {
+                seen := map[string]struct{}{}
+                for _, name := range names {
+                    if name != "" {
+                        seen[name] = struct{}{}
+                    }
+                }
+                return seen
+            }
+            func after(a int) int {
+                return a
+            }
+                ''')
+        self.assertEqual(["set", "after"], [f.name for f in result])
+        self.assertEqual(3, result[0].cyclomatic_complexity)
+        self.assertEqual(2, result[0].start_line)
+        self.assertEqual(10, result[0].end_line)
+
+    def test_result_type_with_a_struct_with_fields(self):
+        result = get_go_function_list('''
+            func pair(a int) struct{ x, y int } {
+                if a > 0 {
+                    return struct{ x, y int }{a, a}
+                }
+                return struct{ x, y int }{0, 0}
+            }
+                ''')
+        self.assertEqual(["pair"], [f.name for f in result])
+        self.assertEqual(2, result[0].cyclomatic_complexity)
+        self.assertEqual(7, result[0].end_line)
