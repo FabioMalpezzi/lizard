@@ -524,6 +524,65 @@ class Test_c_cpp_lizard(unittest.TestCase):
         self.assertEqual("foo", result[0].name)
         self.assertEqual("bar", result[1].name)
 
+class Test_array_parameters(unittest.TestCase):
+
+    def test_array_parameter(self):
+        result = get_cpp_function_list(
+            "int main(int argc, char *argv[]) { return argc; }")
+        self.assertEqual(2, result[0].parameter_count)
+        self.assertEqual(['argc', 'argv'], result[0].parameters)
+
+    def test_array_parameter_with_a_size(self):
+        result = get_cpp_function_list(
+            "int sum(int v[10], int m[2][3], int n) { return n; }")
+        self.assertEqual(['v', 'm', 'n'], result[0].parameters)
+
+
+class Test_function_pointer_parameters(unittest.TestCase):
+
+    def parameter_counts(self, code):
+        return [f.parameter_count for f in get_cpp_function_list(code)]
+
+    def test_pointer_to_a_function_that_returns_void(self):
+        self.assertEqual([2, 2, 2], self.parameter_counts("""
+            void a(void (*cb)(int, void *), void *ud) { }
+            void b(void (*handlers[4])(int), int n) { }
+            void c(void* ud, void (*cb)(void*)) { }
+            """))
+
+    def test_void_alone_is_no_parameter(self):
+        result = get_cpp_function_list("int a(void) { return 1; }")
+        self.assertEqual(0, result[0].parameter_count)
+        self.assertEqual("a()", result[0].long_name)
+
+
+class Test_brackets_in_parameters(unittest.TestCase):
+
+    def parameter_counts(self, code):
+        return [f.parameter_count for f in get_cpp_function_list(code)]
+
+    def test_shift_operator_in_the_arguments_of_a_macro(self):
+        result = get_cpp_function_list("""
+            class J {
+                DEPRECATED_FOR(3.0.0, operator>>(std::istream&, J&))
+                friend std::istream& operator<<(J& j, std::istream& i)
+                {
+                    return operator>>(i, j);
+                }
+                const char* type_name() const { return "x"; }
+            };
+            int after(int a) { return a; }
+            """)
+        self.assertEqual(['J::operator < <', 'J::type_name', 'after'],
+                         [f.name for f in result])
+
+    def test_comparison_in_a_default_value_stays_in_its_function(self):
+        self.assertEqual([2, 2], self.parameter_counts("""
+            void a(int x, int z = b < c ? 1 : 2) { }
+            void d(int a[] = nullptr, char const * const names[] = {}) { }
+            """))
+
+
 class Test_cpp11_Attributes(unittest.TestCase):
     """C++11 extendable attributes can appear pretty much anywhere."""
 
