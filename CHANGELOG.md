@@ -1,5 +1,17 @@
 # Change Log
 
+## 1.26.0+senso.1
+
+First Senso build of 1.26.0: the official 1.26.0 with the fixes not yet in a
+release. The JavaScript and TypeScript fixes of 1.25.0+senso.1 (PRs #551 to
+#554) and the Java annotation default (rebuild/19) are in 1.26.0 and are no
+longer carried. Python: the inline functions and suite boundaries of PR #530
+(by another author), and the NLOC of a prefixed triple-quoted string, as in
+`return f"""..."""`, which was read as a comment and could go negative. Go,
+Rust, Java, C and C++, nesting and duplicates: the fixes of branches rebuild/13
+to rebuild/29 still needed on 1.26.0, ported where 1.26.0 rewrote the same
+code (Rust tokenizer, enum constants, parameter names, nested structures).
+
 ## 1.26.0
 
 ### Bug Fixes
