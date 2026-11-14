@@ -16,6 +16,10 @@ class GoReader(CodeReader, CCppCommentsMixin):
     ext = ['go']
     language_names = ['go']
 
+    # "while" and "catch" are not keywords of Go, and it has no "?"
+    _control_flow_keywords = {'if', 'for'}
+    _ternary_operators = set()
+
     def __init__(self, context):
         super(GoReader, self).__init__(context)
         self.parallel_states = [GoStates(context)]
@@ -23,6 +27,19 @@ class GoReader(CodeReader, CCppCommentsMixin):
     @staticmethod
     def generate_tokens(source_code, addition='', token_class=None):
         addition += r"|`[^`]*`"
+        addition += r"|<-"  # The receive operator is one token
+        # Go has no "<>" brackets: shifts and bit clear are one token too
+        addition += r"|<<=|>>=|&\^=|<<|>>|&\^"
+        addition += r"|\*=|/=|%="
+        # float and imaginary literals: 1.5, 1., .5, 1e-3, 0x1p-2, 2.5i
+        addition += (
+            r"|0[xX][0-9a-fA-F_]*\.?[0-9a-fA-F_]*[pP][-+]?\d[\d_]*i?"
+            r"|\d[\d_]*\.\d[\d_]*(?:[eE][-+]?\d[\d_]*)?i?"
+            r"|\d[\d_]*\.(?![\w.])"
+            r"|\.\d[\d_]*(?:[eE][-+]?\d[\d_]*)?i?"
+            r"|\d[\d_]*[eE][-+]\d[\d_]*i?")
+        # Go has no "**" operator: "**int" is two "*"
+        addition += r"|\*(?=\*)"
         pattern = compiled_token_pattern(addition)
 
         for match in pattern.finditer(source_code):

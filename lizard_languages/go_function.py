@@ -100,9 +100,9 @@ class _SignatureTokens:
 
     def read_type(self, newlines=False):
         token = self.peek(newlines)
-        if token in ('*', '**', '<', 'chan'):
+        if token in ('*', '**', '<', '<-', 'chan'):
             self.take()
-            if self.peek(newlines=True) == '<':
+            if self.peek(newlines=True) in ('<', '<-'):
                 self.take()
             if self.peek(newlines=True) == '-':
                 self.take()
