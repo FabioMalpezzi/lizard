@@ -7,7 +7,9 @@ release. The JavaScript and TypeScript fixes of 1.25.0+senso.1 (PRs #551 to
 #554) and the Java annotation default (rebuild/19) are in 1.26.0 and are no
 longer carried. Python: the inline functions and suite boundaries of PR #530
 (by another author), and the NLOC of a prefixed triple-quoted string, as in
-`return f"""..."""`, which was read as a comment and could go negative. Go,
+`return f"""..."""`, which was read as a comment and could go negative.
+JSX and TSX: "//" in element text, as in a URL, no longer hides the closing
+tag and swallows the functions after it (a regression of 1.26.0). Go,
 Rust, Java, C and C++, nesting and duplicates: the fixes of branches rebuild/13
 to rebuild/29 still needed on 1.26.0, ported where 1.26.0 rewrote the same
 code (Rust tokenizer, enum constants, parameter names, nested structures).
