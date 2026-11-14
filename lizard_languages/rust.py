@@ -36,8 +36,29 @@ class RustReader(CodeReader, CCppCommentsMixin):
             # char literals, before lifetimes, which also start with `'`
             r"|(?:'(?:\\(?:x[0-9a-fA-F]{2}|u\{[0-9a-fA-F]+\}|.)|[^'\\\n])')"
             r"|(?:'\w+\b)")  # lifetimes, labels
-        return CodeReader.generate_tokens(
-            _flatten_nested_comments(source_code), addition, token_class)
+        # raw strings r"..", r#".."#, with up to three "#", and r#name
+        addition += r'|b?r"[^"]*"' + ''.join(
+            r'|b?r%s"(?:[^"]|"(?!%s))*"%s' % (hashes, hashes, hashes)
+            for hashes in ('###', '##', '#')) + r"|r\#\w+"
+        addition += r"|\.\.\.|\.\.=|\.\."  # ranges: one token each
+        addition += r"|\d\w*\.\d\w*(?:[eE][-+]?\d\w*)?"  # 1.5, 2.0e-3, 1.0f64
+        addition += r"|\*=|/=|%="
+        source_code = _flatten_nested_comments(source_code)
+        while source_code:
+            offset = 0
+            rest = ''
+            for token in CodeReader.generate_tokens(
+                    source_code, addition, token_class):
+                if token.startswith('#') and len(token) > 1:
+                    # The common tokenizer reads "#" and the rest of the
+                    # line as a C macro. In Rust "#" starts an attribute,
+                    # or is a token of a macro: read again what follows.
+                    yield '#'
+                    rest = source_code[offset + 1:]
+                    break
+                offset += len(token)
+                yield token
+            source_code = rest
 
     def preprocess(self, tokens):
         """Split the `||` of a closure without parameters, `|| x`, into two
