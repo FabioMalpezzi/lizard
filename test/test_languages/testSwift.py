@@ -398,3 +398,12 @@ enum Shape {
     }
 }
 """))
+
+    def test_parameter_of_function_type(self):
+        result = get_swift_function_list('''
+            func sorted(items: [Int], by less: (Int, Int) -> Bool, limit: Int) -> [Int] {
+                return items
+            }
+            ''')
+        self.assertEqual(3, result[0].parameter_count)
+        self.assertEqual(['items', 'less', 'limit'], result[0].parameters)

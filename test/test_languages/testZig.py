@@ -240,3 +240,12 @@ class TestZig(unittest.TestCase):
             }
         """)
         self.assertEqual(2, result[0].cyclomatic_complexity)
+
+    def test_parameter_of_function_type(self):
+        result = get_zig_function_list('''
+            fn apply(a: i32, f: fn (i32, i32) i32, b: i32) i32 {
+                return f(a, b);
+            }
+            ''')
+        self.assertEqual(3, result[0].parameter_count)
+        self.assertEqual(['a', 'f', 'b'], result[0].parameters)
