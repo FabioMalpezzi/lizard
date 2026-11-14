@@ -1,16 +1,8 @@
-// One process's connection to the GitHub request owner
-// (`./github-request-owner.mjs`) of the API host and login its `gh` asks
-// with, over that owner's private endpoint
-// (`./github-request-owner-endpoint.mjs`): found by its standing record,
-// started when none answers, greeted with its caller token, and kept for
-// every request this process asks while its login stands. Once the login
-// changes, whatever was asked under the earlier one is asked again under
-// this one, and no answer to the earlier is passed on. An owner that cannot
-// be reached or started, speaks another protocol or refuses the greeting
-// leaves each request unanswered -- never asked of GitHub by this process
-// itself, so no second owner of the allowance appears.
-import { spawn } from "node:child_process";
-import { fileURLToPath } from "node:url";
+// One process's private connection to the GitHub request owner of its host
+// and login, found by its record and started when none answers. Reads may
+// be asked again after a login change. An action requires the owner's
+// explicit capability and is never resent. Unreachable or incompatible
+// owners leave requests unanswered, never run through a fallback process.
 import {
   EndpointBinding,
   standingRecord,
@@ -18,6 +10,8 @@ import {
 import {
   greeted,
   scopeOf,
+  startOwnerProcess,
+  supportsWorkflowRerun,
 } from "./github-request-owner-endpoint-connection.mjs";
 import { send } from "./github-request-owner-wire.mjs";
 import {
@@ -26,10 +20,6 @@ import {
 } from "./github-request-owner-failure.mjs";
 
 /** @import { Socket } from "node:net" */
-
-const ownerEntry = fileURLToPath(
-  new URL("./github-request-owner.mjs", import.meta.url),
-);
 
 // How long finding or starting the owner may take before the requests
 // still waiting for it go unanswered -- each gives up at its own bound
@@ -71,7 +61,7 @@ export class OwnerLink {
 
   // The connection to the owner this process last asked, and each request
   // still waiting for that owner's reply, by its number.
-  /** @type {{ readonly directory: string; connecting?: Promise<Socket>; owner?: OwnerIdentity; readonly waiting: Map<number, (reply: OwnerReply) => void> } | undefined} */
+  /** @type {{ readonly directory: string; connecting?: Promise<Socket>; socket?: Socket; owner?: OwnerIdentity; readonly waiting: Map<number, (reply: OwnerReply) => void> } | undefined} */
   #link;
 
   #asked = 0;
@@ -92,15 +82,26 @@ export class OwnerLink {
     return directory && scopeOf(directory);
   }
 
+  // Ends this consumer's waits together at the owner, without ending another
+  // consumer's shared calls. A later request establishes a new connection.
+  disconnect() {
+    const link = this.#link;
+    this.#link = undefined;
+    link?.socket?.destroy();
+    void link?.connecting?.then(
+      (socket) => socket.destroy(),
+      () => undefined,
+    );
+  }
+
   // The owner's reply to one request: its `answer`, and whether the call
   // failed (`told`); the `owner` it was sent to, once sent; `timedOut` when
   // the call reached its own bound; `left` once `signal` ended this wait,
   // which tells the owner so, at this requester's own bound when
   // `leavingAtBound` says so; a safe `failure` when the owner cannot be
-  // asked. A reply to what was asked under a login this process has no more
-  // is dropped, and the request asked again under the one it has.
+  // asked. Reads may retry after a login change; actions never do.
   /**
-   * @param {{ readonly args: readonly string[]; readonly boundMs: number; readonly maxBufferBytes: number }} request
+   * @param {{ readonly args?: readonly string[]; readonly operation?: string; readonly repository?: string; readonly runId?: number; readonly boundMs: number; readonly maxBufferBytes: number }} request
    * @param {AbortSignal} signal
    * @param {() => boolean} leavingAtBound
    * @returns {Promise<OwnerReply>}
@@ -116,7 +117,9 @@ export class OwnerLink {
           signal,
           leavingAtBound,
         );
-        if (reply.left || reply.timedOut) return reply;
+        // Actions never enter the read loop that retries under a new login.
+        if (request.operation !== undefined || reply.left || reply.timedOut)
+          return reply;
         if (directory === (await this.#binding.directory())) return reply;
       }
     } catch (error) {
@@ -152,6 +155,13 @@ export class OwnerLink {
       this.#connected(directory).then(
         (socket) => {
           if (signal.aborted) return;
+          if (
+            request.operation !== undefined &&
+            !supportsWorkflowRerun(socket)
+          ) {
+            settle({ refused: "operation-unavailable" });
+            return;
+          }
           this.#asked += 1;
           sent = { id: this.#asked, socket, owner: link.owner };
           link.waiting.set(sent.id, settle);
@@ -168,10 +178,7 @@ export class OwnerLink {
   // without a reply.
   #linked(directory) {
     if (this.#link?.directory !== directory) {
-      this.#link?.connecting?.then(
-        (socket) => socket.destroy(),
-        () => undefined,
-      );
+      this.disconnect();
       this.#link = { directory, waiting: new Map() };
     }
     return this.#link;
@@ -183,6 +190,7 @@ export class OwnerLink {
     const link = this.#linked(directory);
     link.connecting ??= this.#connect(link).then(
       ({ socket, record: { pid, generation, protocol } }) => {
+        link.socket = socket;
         link.owner = { pid, generation, protocol };
         socket.unref();
         socket.once("close", () => {
@@ -223,27 +231,8 @@ export class OwnerLink {
         throw new OwnerUnavailable("start-failed");
       if (Date.now() > deadline) throw new OwnerUnavailable("unknown");
       if (starting === undefined || starting.process.exitCode !== null)
-        starting = this.#started(directory);
+        starting = startOwnerProcess(directory, this.#backoffBaseMs);
       await pause(20);
     }
-  }
-
-  // An owner of its own process group, outliving this process, with no
-  // output and nothing of this process's Node options: it runs only what is
-  // installed beside this file.
-  #started(directory) {
-    const env = { ...process.env };
-    delete env.NODE_OPTIONS;
-    const owner = spawn(
-      process.execPath,
-      [ownerEntry, directory, String(this.#backoffBaseMs)],
-      { cwd: directory, env, detached: true, stdio: "ignore" },
-    );
-    const started = { process: owner, failure: undefined };
-    owner.on("error", () => {
-      started.failure = new OwnerUnavailable("start-failed");
-    });
-    owner.unref();
-    return started;
   }
 }

@@ -25,7 +25,7 @@ completion prerequisite. Review the delivered implementation while observation
 continues and state which conclusions remain conditional on unresolved CI. Do
 not invoke the CI wait, stop or replace its observer, acknowledge its events, or
 claim final execution/review handoff; the invoking execution owns those actions
-through its [completion operation](../dough-execute-plan/references/ci-monitor.md#await-the-applicable-revision-at-completion).
+through its [completion operation](../dough-execute-plan/references/ci-completion-wait.md#await-the-applicable-revision-at-completion).
 
 ## Select reviews
 
@@ -45,6 +45,8 @@ an include-process request enables without a new flag. Clarify contradictory ins
 Otherwise unreadable/malformed/non-object JSON or non-boolean recognized values leave selection
 unresolved: report error, omit process analysis/log access, and continue independent reviews.
 
+When process is enabled, apply [Deferred process review into wrap-up](../dough-execute-plan/references/deferred-process-review.md) before process analysis. Explicit skips, unresolved selection, and missing-history rules stay unchanged.
+
 ## Resolve this project's context
 
 Start from a capability/story phrase, correction plan, commit, or current/supplied conversation.
@@ -59,14 +61,15 @@ Quick inputs follow the recovery rules below.
 
 Make every allowed write in one owned checkout. When an invoking execution supplies its execution
 checkout as the write location, write there; that execution commits those records in its
-completion commit. A landing or wrap-up running the
+completion commit. A landing running the
 [process review of its run](references/process-review-of-a-run.md) supplies its own checkout as
 that execution checkout and commits the records itself. Otherwise, immediately before the first
 write, select or reuse an owned workspace under
 [prepare records in an owned workspace](../dough-story-refinement/references/preparation-workspace.md),
-write there, and report the written result's pending disposition. Do not write in the checkout the review
-started from unless it is that supplied execution checkout. A review that writes nothing creates no
-workspace. Resolve the process-log path and correction story and plan locations in the chosen checkout.
+write there, and report the written result's pending disposition. Do not write in the checkout the
+review started from unless it is that supplied execution checkout. A review that writes nothing
+creates no workspace. Resolve the process-log path and correction story and plan locations in the
+chosen checkout.
 
 Before residue assessment, read [refactoring](../dough-post-change-refactor/SKILL.md) and its
 checks; use the smell definitions on the aggregate result without editing. For needed correction
@@ -128,7 +131,7 @@ Older weaknesses may need correction; only provenance establishes an execution r
 Identify whether E2E tests drove development, then assess the whole suite, including older tests
 and executions adding no E2E tests, under [behavioral test guidance](../dough-post-change-refactor/references/refactor-checks.md#tests-as-behavioral-documentation).
 Ground retention, detail downgrades, and consolidation in coverage/cost; preserve journey
-information and integration proof. Use project testing guidance or the shared black-box fallback.
+information and integration proof.
 Whole-suite assessment needs no full run; use focused read-only checks to confirm/dismiss findings.
 
 Inspect worked-around/replaced branches, flags, callers, fixtures, compatibility paths, overlapping/
@@ -232,7 +235,7 @@ and the input/action needed to continue.
 When invoked automatically by an active `dough-execute-plan` execution, return
 immediately to that execution's completion operation, without a separate visible
 final report or confirmation. Return the review's completion or partial state,
-the retained evidence and record links, product advice/skip reasons, and current
+including any selected deferred process still pending into wrap-up, the retained evidence and record links, product advice/skip reasons, and current
 unresolved attention. A successful return completes review, not the execution's final CI
 handoff; the invoking execution owns its combined final response. Repeated or
 overlapping reviews contribute each currently unresolved item once under its
