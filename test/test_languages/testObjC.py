@@ -227,3 +227,26 @@ class Test_objc_interface(unittest.TestCase):
             "@protocol(NSObject)\n"
             "void f() { }\n")
         self.assertEqual(["f"], [f.name for f in result])
+
+
+class TestObjCPreprocessor(unittest.TestCase):
+
+    def test_parenthesis_after_a_tilde_in_a_branch_of_if(self):
+        result = analyze_file.analyze_source_code("a.m", """
+int f(int mode, int x) {
+#if TARGET_OS_IPHONE
+    mode &= ~(1 | 2);
+#else
+    if (x > 0 && mode) { x--; }
+#endif
+    return mode;
+}
+#if TARGET_OS_IPHONE
+static int a(int m) { return m & ~(4); }
+#else
+static int b(int m) { return m; }
+#endif
+""").function_list
+        self.assertEqual(['f', 'a', 'b'], [f.name for f in result])
+        # 1, the #if, "if" and "&&"
+        self.assertEqual(4, result[0].cyclomatic_complexity)
