@@ -1,5 +1,13 @@
 # Change Log
 
+## 1.26.0+senso.2
+
+1.26.0+senso.1 with one more fix. JSX and TSX: an element right after another
+child element, as in `<div><p>x</p><B /></div>`, no longer produces an empty
+text token, on which the duplicate extension (-Eduplicate) stopped with
+"IndexError: string index out of range". The empty tokens were also counted,
+so the token count of such components drops.
+
 ## 1.26.0+senso.1
 
 First Senso build of 1.26.0: the official 1.26.0 with the fixes not yet in a
